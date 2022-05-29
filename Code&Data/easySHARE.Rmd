@@ -1,0 +1,81 @@
+---
+title: "Dementia Risk Factors: EDA of easySHARE data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/easySHARE/R")
+```
+
+## Load data
+
+Load the easySHARE data. For information on data and variables, see the [easySHARE data  guide](http://www.share-project.org/fileadmin/pdf_documentation/easySHARE_Release_8.0.0_ReleaseGuide.pdf).
+
+```{r easyshare}
+load("easySHARE_rel8_0_0.rda")
+```
+
+Load packages:
+
+```{r packs, message = FALSE}
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+```
+
+## Cognitive score
+
+EasySHARE does not record diagnosis of dementia (e.g. Alzheimer's disease) in all waves. Instead, we will create a composite cognitive score as a proxy for dementia severity, following [Crimmins et al. (2011)](https://pubmed.ncbi.nlm.nih.gov/21743047/). The cognitive function indices are described in pg. 23 of the easySHARE data guide.
+
+```{r cogindices, message = FALSE, fig.height=3, fig.width=9}
+cogvars <- c("recall_1", "recall_2", "orienti", "numeracy_1", "numeracy_2")
+cog = easySHARE_rel8_0_0[cogvars]
+p1 = ggplot() +
+  geom_histogram(aes(x=cog$recall_1), color="darkblue", fill="lightblue") +
+  labs(x ="Recall of words, first trial")
+p2 = ggplot() +
+  geom_histogram(aes(x=cog$recall_2), color="darkblue", fill="lightblue") +
+  labs(x ="Recall of words, second trial")
+p3 = ggplot() +
+  geom_histogram(aes(x=cog$orienti), color="darkblue", fill="lightblue") +
+  labs(x ="Orientation to date")
+p4 = ggplot() +
+  geom_histogram(aes(x=cog$numeracy_1), color="darkblue", fill="lightblue") +
+  labs(x ="Numeracy Score 1 (percentage)")
+p5 = ggplot() +
+  geom_histogram(aes(x=cog$numeracy_2), color="darkblue", fill="lightblue") +
+  labs(x ="Numeracy Score 2 (subtraction)")
+grid.arrange(p1, p2, p3, p4, p5, nrow = 2)
+```
+
+Notice the missing values (missing codes are explained on pg. 6 of missing codes of the easySHARE guide). In addition, for the numeracy measures, only one score is recorded in latter waves (pg. 23). Here we take a simple average if both measures are availble. However, you may consider other approaches (please include an explanation/motivation). Notice that  `numeracy_1` ranges from 1 to 5, while `numeracy_2` ranges from 0 to 5.
+
+```{r numeracy, message = FALSE, warning=FALSE, fig.height=2, fig.width=3}
+numeracy = rep(NA,dim(cog)[1])
+numeracy[cog$numeracy_1 >= 0 & cog$numeracy_2 >= 0] = (cog$numeracy_1[cog$numeracy_1 >= 0 & cog$numeracy_2 >= 0] + cog$numeracy_2[cog$numeracy_1 >= 0 & cog$numeracy_2 >= 0] )/2
+numeracy[cog$numeracy_1 >= 0 & cog$numeracy_2 < 0] = cog$numeracy_1[cog$numeracy_1 >= 0 & cog$numeracy_2 < 0]
+numeracy[cog$numeracy_1 < 0 & cog$numeracy_2 >= 0] = cog$numeracy_2[cog$numeracy_1 < 0 & cog$numeracy_2 >= 0]
+cog$numeracy = numeracy
+ggplot() +
+  geom_histogram(aes(x=cog$numeracy), color="darkblue", fill="lightblue") +
+  labs(x ="Numeracy Score")
+```
+
+We now create a composite cognitive score, ranging from 0 (bad) to 29 (good), that combines the recall scores, orientation, and numeracy measure. Note that orientation is on the opposite scale, with 0 (good) and 4 (bad), so we transform appropiately. 
+
+```{r cogscore, message = FALSE, warning=FALSE, fig.height=2, fig.width=3}
+cogscore = rep(NA,dim(cog)[1])
+ind = cog$recall_1 >= 0 & cog$recall_2 >= 0 & cog$orienti >= 0 & !is.na(numeracy)
+cogscore[ind] = cog$recall_1[ind] + cog$recall_2[ind] + (4 - cog$orienti[ind]) + cog$numeracy[ind]
+cog$cogscore = cogscore
+ggplot() +
+  geom_histogram(aes(x=cog$cogscore[ind]), color="darkblue", fill="lightblue", binwidth =2 ) +
+  labs(x ="Composite cogntive score")
+```
+
+## Dementia risk factors
+
+Extract variables related to modifiable risk factors identified in literature: education, hearing loss, traumatic brain injury, hypertension, alcohol consumption, smoking, obesity, physical activity, depression, social isolation, diabetes, and air pollution [Livingston et al. (2020)](https://www.thelancet.com/article/S0140-6736(20)30367-6/fulltext). Refer to the easySHARE guide for a description of the variables availble. You may also consider other relevant risk factors, along with an explanation and motivation. Gender and age are also relevant variables to consider, e.g. to explore differences between men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/).
+
+The SHARE project is a multi-country longitudinal study. You may decide to focus on a single or compare multiple countries. 
