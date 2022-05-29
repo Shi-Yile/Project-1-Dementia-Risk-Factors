@@ -4,8 +4,8 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-setwd("~/Documents/GitHub/easySHARE/R")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+#setwd("~/Documents/GitHub/easySHARE/R")
 ```
 
 ## Load data
@@ -62,7 +62,7 @@ ggplot() +
   labs(x ="Numeracy Score")
 ```
 
-We now create a composite cognitive score, ranging from 0 (bad) to 29 (good), that combines the recall scores, orientation, and numeracy measure. Note that orientation is on the opposite scale, with 0 (good) and 4 (bad), so we transform appropiately. 
+We now create a composite cognitive score, ranging from 0 (bad) to 29 (good), that combines the recall scores, orientation, and numeracy measure. Note that orientation is on the opposite scale, with 0 (good) and 4 (bad), so we transform appropriately. 
 
 ```{r cogscore, message = FALSE, warning=FALSE, fig.height=2, fig.width=3}
 cogscore = rep(NA,dim(cog)[1])
