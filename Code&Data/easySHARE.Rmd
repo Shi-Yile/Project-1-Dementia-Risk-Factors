@@ -5,6 +5,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+Sys.setlocale("LC_ALL", "UK")
 #setwd("~/Documents/GitHub/easySHARE/R")
 ```
 
@@ -74,8 +75,141 @@ ggplot() +
   labs(x ="Composite cogntive score")
 ```
 
+According to expertise knowledge, if we focus on the influence of risk factors on a single data point, the cognitive score based on four indices above is fine; but if we seek to explore the influence of risk factors over time, it would be better to create the cognitive score using `recall_1` and `recall_2` only as the other indices are inappropriate (`orient_date`) or contain too many missing values (`numeracy_1`, `numeracy_2`).
+
+
 ## Dementia risk factors
 
-Extract variables related to modifiable risk factors identified in literature: education, hearing loss, traumatic brain injury, hypertension, alcohol consumption, smoking, obesity, physical activity, depression, social isolation, diabetes, and air pollution [Livingston et al. (2020)](https://www.thelancet.com/article/S0140-6736(20)30367-6/fulltext). Refer to the easySHARE guide for a description of the variables availble. You may also consider other relevant risk factors, along with an explanation and motivation. Gender and age are also relevant variables to consider, e.g. to explore differences between men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/).
+Extract variables related to modifiable risk factors identified in literature: education, hearing loss, traumatic brain injury, hypertension, alcohol consumption, smoking, obesity, physical activity, depression, social isolation, diabetes, and air pollution [Livingston et al. (2020)](https://www.thelancet.com/article/S0140-6736(20)30367-6/fulltext). Refer to the easySHARE guide for a description of the variables available. You may also consider other relevant risk factors, along with an explanation and motivation. Gender and age are also relevant variables to consider, e.g. to explore differences between men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/).
 
 The SHARE project is a multi-country longitudinal study. You may decide to focus on a single or compare multiple countries. 
+
+### Education
+
+According to the easySHARE guide, the following columns are related to the education information of the patients:
+\begin{itemize}
+  \item \texttt{isced1997_r}: the ISCED-97 coding of education
+  \item \texttt{eduyears_mod}: years of education
+  \item \texttt{books_age10}: the number of books existed in the place the respondent lived at 10
+  \item \texttt{maths_age10}: the performance in mathematics compared to other children when the respondent was 10
+  \item \texttt{language_age10}: the relative language skills compared to other children when the respondent was 10
+\end{itemize}
+
+```{r edu}
+eduvars <- c("isced1997_r", "eduyears_mod")
+edu <- easySHARE_rel8_0_0[eduvars]
+edu_miss <- data.frame(isced1997 = nrow(edu[edu$isced1997_r < 0, ]),
+                       eduyears = nrow(edu[edu$eduyears_mod < 0, ]),
+                       both = nrow(edu[apply(edu, 1, function(x) all(x < 0)) == T, ]),
+                       total = nrow(edu[apply(edu, 1, function(x) any(x < 0)) == T, ]),
+                       row.names = "count")
+edu_miss
+```
+
+```{r edu}
+p_edu_1 <- ggplot(edu, aes(x = as.factor(isced1997_r))) + 
+  geom_bar(aes(y = (..count..)), color = "darkblue", fill = "lightblue") + 
+  labs(x = "ISCED-97 Coding of Education")
+p_edu_2 <- ggplot(edu, aes(x = as.factor(eduyears_mod))) + 
+  geom_bar(aes(y = (..count..)), color = "darkblue", fill = "lightblue") + 
+  labs(x = "Years of Education")
+grid.arrange(p_edu_1, p_edu_2, nrow = 2)
+```
+
+### Hearing Loss
+
+### TBI (Traumatic Brain Injury)
+
+### Hypertension
+### Diabetes
+
+The `chronic_mod` measures the number of chronic diseases of a respondent. The following conditions are considered:
+\begin{itemize}
+  \item A heart attack 
+  \item High blood pressure or hypertension
+  \item High blood cholesterol
+  \item A stroke or cerebral vascular disease
+  \item Diabetes or high blood sugar
+  \item Chronic lung disease
+  \item Cancer or malignant tumor
+  \item Stomach or duodenal ulcer, peptic ulcer
+  \item Parkinson disease
+  \item Cataracts
+  \item Hip fracture or femoral fracture
+\end{itemize}
+
+Both \emph{hypertension} and \emph{diabetes} are included, while there is no single variable indicating each disease respectively.
+
+### Alcohol Consumption
+
+\begin{itemize}
+  \item \texttt{br010_mod}: information on respondent's drinking behaviour 
+\end{itemize}
+
+### Smoking
+
+\begin{itemize}
+  \item \texttt{smoking}: whether the respondent smokes at present
+  \item \texttt{ever_smoked}: whether the respondent ever smoked daily
+\end{itemize}
+
+### Obesity
+
+\begin{itemize}
+  \item \texttt{bmi}: the respondent's body mass index
+  \item \texttt{bmi2}: categorized body mass index
+\end{itemize}
+
+### Physical Activity
+
+\begin{itemize}
+  \item \texttt{br015_}: information on the frequency of doing vigorous activities
+  \item \texttt{maxgrip}: the maximum of grip strength measure
+  \item \texttt{adla}: activities of daily living indices
+  \item \texttt{iadlza}: instrumental activities of daily living indices 
+  \item \texttt{monilityind}: mobility index
+  \item \texttt{lgmuscle}: large muscle index 
+  \item \texttt{grossmotor}: gross motor skill index
+  \item \texttt{finemotor}: fine motor skill index
+\end{itemize}
+
+### Depression
+
+\begin{itemize}
+  \item \texttt{casp}: the CASP-12 score that measures the quality of life
+  \item \texttt{eurod}: a composite index that measures the current depression
+\end{itemize}
+
+### Social Isolation
+
+Most columns in this part are not included in wave 3. 
+
+We consider the following variables:
+\begin{itemize}
+  \item \texttt{mar_stat}: the respondent's marital status
+  \item \texttt{hhsize}: number of people living in the respondent's household
+  \item \texttt{partnerinhh}: whether the respondent is living with a spouse/partner in household
+  \item \texttt{int_partner}: whether an interview of respondent's partner is available
+  \item \texttt{age_partner}: the age of a respondent's partner 
+  \item \texttt{gender_partner}: the gender of a respondent's partner
+  \item \texttt{mother_alive}: whether the respondent's mother is still alive
+  \item \texttt{father_alive}: whether the respondent's father is still alive
+  \item \texttt{siblings_alive}: number of siblings alive
+  \item \texttt{ch001_}: number of children
+  \item \texttt{ch021_mod}: number of grandchildren
+  \item \texttt{ch007_hh}: whether at least one child is in the same household
+  \item \texttt{ch007_km}: whether at least one child lives less than 1km away from the respondent's household
+  \item \texttt{sp002_mod}: whether the respondents (or if applicable their partners) have received help outside the household
+  \item \texttt{sp008_}: whether the respondent has personally given help to anyone outside the household
+\end{itemize}
+
+Note that according to the guide, `sp003_1_mod` - `sp003_3_mod` indicate the persons outside the respondents' (or their partners') household who give help and `sp009_1_mod` - `sp009_3_mod` suggest the persons outside the household who receive help from the respondents. Here, these variables are numeric and we have the doubt whether we should take them into account and if so how we deal with them.    
+
+```{r Social}
+socialvars <- c("mar_stat", "hhsize", "partnerinhh", "int_partner", 
+                "age_partner", "gender_partner", "mother_alive", "father_alive",
+                "siblings_alive", "ch001_", "ch021_mod", "ch007_hh", "ch007_km",
+                "sp002_mod", "sp008_")
+```
+
+### Air Pollution
