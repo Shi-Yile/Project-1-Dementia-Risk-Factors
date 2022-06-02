@@ -96,13 +96,17 @@ According to the easySHARE guide, the following columns are related to the educa
 \end{itemize}
 
 ```{r edu}
-eduvars <- c("isced1997_r", "eduyears_mod")
+eduvars <- c("isced1997_r", "eduyears_mod", "books_age10", 
+             "maths_age10", "language_age10")
 edu <- easySHARE_rel8_0_0[eduvars]
-edu_miss <- data.frame(isced1997 = nrow(edu[edu$isced1997_r < 0, ]),
-                       eduyears = nrow(edu[edu$eduyears_mod < 0, ]),
-                       both = nrow(edu[apply(edu, 1, function(x) all(x < 0)) == T, ]),
-                       total = nrow(edu[apply(edu, 1, function(x) any(x < 0)) == T, ]),
-                       row.names = "count")
+edu_miss <- data.frame(count = c(nrow(edu[edu$isced1997_r < 0, ]),
+                                 nrow(edu[edu$eduyears_mod < 0, ]),
+                                 nrow(edu[edu$books_age10 < 0, ]),
+                                 nrow(edu[edu$maths_age10 < 0, ]),
+                                 nrow(edu[edu$language_age10 < 0, ]),
+                                 nrow(edu[apply(edu, 1, function(x) all(x < 0)) == T, ]),
+                                 nrow(edu[apply(edu, 1, function(x) any(x < 0)) == T, ])),
+                       row.names = c(eduvars, "union", "total"))
 edu_miss
 ```
 
@@ -114,6 +118,19 @@ p_edu_2 <- ggplot(edu, aes(x = as.factor(eduyears_mod))) +
   geom_bar(aes(y = (..count..)), color = "darkblue", fill = "lightblue") + 
   labs(x = "Years of Education")
 grid.arrange(p_edu_1, p_edu_2, nrow = 2)
+p_edu_3 = ggplot() +
+  geom_histogram(aes(x = edu$books_age10), color = "darkblue", 
+                 fill = "lightblue") +
+  labs(x = "Books read at 10")
+p_edu_4 = ggplot() +
+  geom_histogram(aes(x = edu$maths_age10), color = "darkblue", 
+                 fill = "lightblue") +
+  labs(x = "Maths performance at 10")
+p_edu_5 = ggplot() +
+  geom_histogram(aes(x = edu$language_age10), color = "darkblue", 
+                 fill = "lightblue") +
+  labs(x = "Language skills at 10")
+grid.arrange(p_edu_3, p_edu_4, p_edu_5, nrow = 2)
 ```
 
 ### Hearing Loss
@@ -140,11 +157,27 @@ The `chronic_mod` measures the number of chronic diseases of a respondent. The f
 
 Both \emph{hypertension} and \emph{diabetes} are included, while there is no single variable indicating each disease respectively.
 
+```{r Hyper_Diab}
+ggplot() +
+  geom_histogram(aes(x = easySHARE_rel8_0_0$chronic_mod), color = "darkblue", 
+                 fill = "lightblue", binwidth = 1) +
+  labs(x = "Number of chronic diseases")
+```
+
+
 ### Alcohol Consumption
 
 \begin{itemize}
   \item \texttt{br010_mod}: information on respondent's drinking behaviour 
 \end{itemize}
+
+```{r Alcohol}
+ggplot() +
+  geom_histogram(aes(x = easySHARE_rel8_0_0$br010_mod), color = "darkblue", 
+                 fill = "lightblue", binwidth = 1) +
+  labs(x = "Drinking behaviour")
+```
+
 
 ### Smoking
 
@@ -153,12 +186,48 @@ Both \emph{hypertension} and \emph{diabetes} are included, while there is no sin
   \item \texttt{ever_smoked}: whether the respondent ever smoked daily
 \end{itemize}
 
+```{r Smoking}
+smokevars <- c("smoking", "ever_smoked")
+smoke <- easySHARE_rel8_0_0[smokevars]
+smoke_miss <- data.frame(count = c(nrow(smoke[smoke$smoking < 0, ]),
+                                   nrow(smoke[smoke$ever_smoked < 0, ]),
+                                   nrow(smoke[apply(smoke, 1, function(x) all(x < 0)) == T, ]),
+                                   nrow(smoke[apply(smoke, 1, function(x) any(x < 0)) == T, ])),
+                         row.names = c(smokevars, "union", "total"))
+smoke_miss
+```
+
+```{r Smoking}
+p_smoke_1 = ggplot() +
+  geom_histogram(aes(x = smoke$smoking), color = "darkblue", 
+                 fill = "lightblue") +
+  labs(x = "Present smoking status")
+p_smoke_2 = ggplot() +
+  geom_histogram(aes(x = smoke$ever_smoked), color = "darkblue", 
+                 fill = "lightblue") +
+  labs(x = "Past smoking status")
+grid.arrange(p_smoke_1, p_smoke_2, nrow = 1)
+```
+
+
 ### Obesity
 
 \begin{itemize}
   \item \texttt{bmi}: the respondent's body mass index
   \item \texttt{bmi2}: categorized body mass index
 \end{itemize}
+
+```{r Obesity}
+obesityvars <- c("bmi", "bmi2")
+obesity <- easySHARE_rel8_0_0[obesityvars]
+obesity_miss <- data.frame(count = c(nrow(obesity[obesity$bmi < 0, ]),
+                                     nrow(obesity[obesity$bmi2 < 0, ]),
+                                   nrow(smoke[apply(smoke, 1, function(x) all(x < 0)) == T, ]),
+                                   nrow(smoke[apply(smoke, 1, function(x) any(x < 0)) == T, ])),
+                         row.names = c(smokevars, "union", "total"))
+smoke_miss
+```
+
 
 ### Physical Activity
 
