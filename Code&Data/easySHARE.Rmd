@@ -120,18 +120,33 @@ p_edu_2 <- ggplot(edu, aes(x = as.factor(eduyears_mod))) +
 grid.arrange(p_edu_1, p_edu_2, nrow = 2)
 p_edu_3 = ggplot() +
   geom_histogram(aes(x = edu$books_age10), color = "darkblue", 
-                 fill = "lightblue") +
+                 fill = "lightblue", binwidth = 1) +
   labs(x = "Books read at 10")
 p_edu_4 = ggplot() +
   geom_histogram(aes(x = edu$maths_age10), color = "darkblue", 
-                 fill = "lightblue") +
+                 fill = "lightblue", binwidth = 1) +
   labs(x = "Maths performance at 10")
 p_edu_5 = ggplot() +
   geom_histogram(aes(x = edu$language_age10), color = "darkblue", 
-                 fill = "lightblue") +
+                 fill = "lightblue", binwidth = 1) +
   labs(x = "Language skills at 10")
 grid.arrange(p_edu_3, p_edu_4, p_edu_5, nrow = 2)
 ```
+
+```{r edu}
+table(easySHARE_rel8_0_0$wave[edu$books_age10 >= 0])
+table(easySHARE_rel8_0_0$wave[edu$maths_age10 >= 0])
+table(easySHARE_rel8_0_0$wave[edu$language_age10 >= 0])
+table(easySHARE_rel8_0_0$wave[edu$isced1997_r >= 0])
+table(easySHARE_rel8_0_0$wave[edu$eduyears_mod >= 0])
+
+```
+
+```{r}
+wave7 <- easySHARE_rel8_0_0[easySHARE_rel8_0_0$wave == 7, ]
+head(easySHARE_rel8_0_0[easySHARE_rel8_0_0$country == 15, ])
+```
+
 
 ### Hearing Loss
 
@@ -200,11 +215,11 @@ smoke_miss
 ```{r Smoking}
 p_smoke_1 = ggplot() +
   geom_histogram(aes(x = smoke$smoking), color = "darkblue", 
-                 fill = "lightblue") +
+                 fill = "lightblue", binwidth = 1) +
   labs(x = "Present smoking status")
 p_smoke_2 = ggplot() +
   geom_histogram(aes(x = smoke$ever_smoked), color = "darkblue", 
-                 fill = "lightblue") +
+                 fill = "lightblue", binwidth = 1) +
   labs(x = "Past smoking status")
 grid.arrange(p_smoke_1, p_smoke_2, nrow = 1)
 ```
@@ -222,12 +237,23 @@ obesityvars <- c("bmi", "bmi2")
 obesity <- easySHARE_rel8_0_0[obesityvars]
 obesity_miss <- data.frame(count = c(nrow(obesity[obesity$bmi < 0, ]),
                                      nrow(obesity[obesity$bmi2 < 0, ]),
-                                   nrow(smoke[apply(smoke, 1, function(x) all(x < 0)) == T, ]),
-                                   nrow(smoke[apply(smoke, 1, function(x) any(x < 0)) == T, ])),
-                         row.names = c(smokevars, "union", "total"))
-smoke_miss
+                                     nrow(obesity[apply(obesity, 1, function(x) all(x < 0)) == T, ]),
+                                     nrow(obesity[apply(obesity, 1, function(x) any(x < 0)) == T, ])),
+                           row.names = c(obesityvars, "union", "total"))
+obesity_miss
 ```
 
+```{r obesity}
+p_obesity_1 = ggplot() +
+  geom_histogram(aes(x = obesity$bmi), color = "darkblue", 
+                 fill = "lightblue", binwidth = 3) +
+  labs(x = "BMI")
+p_obesity_2 = ggplot() +
+  geom_histogram(aes(x = obesity$bmi2), color = "darkblue", 
+                 fill = "lightblue", binwidth = 1) +
+  labs(x = "Categorized BMI")
+grid.arrange(p_obesity_1, p_obesity_2, nrow = 1)
+```
 
 ### Physical Activity
 
@@ -236,11 +262,39 @@ smoke_miss
   \item \texttt{maxgrip}: the maximum of grip strength measure
   \item \texttt{adla}: activities of daily living indices
   \item \texttt{iadlza}: instrumental activities of daily living indices 
-  \item \texttt{monilityind}: mobility index
+  \item \texttt{mobilityind}: mobility index
   \item \texttt{lgmuscle}: large muscle index 
   \item \texttt{grossmotor}: gross motor skill index
   \item \texttt{finemotor}: fine motor skill index
 \end{itemize}
+
+```{r Physical}
+phyvars <- c("br015_", "maxgrip", "adla", "iadlza", "mobilityind", 
+             "lgmuscle", "grossmotor", "finemotor")
+phy <- easySHARE_rel8_0_0[phyvars]
+phy_miss <- data.frame(count = c(nrow(phy[phy$br015_ < 0, ]),
+                                 nrow(phy[phy$maxgrip < 0, ]),
+                                 nrow(phy[phy$adla < 0, ]),
+                                 nrow(phy[phy$iadlza < 0, ]),
+                                 nrow(phy[phy$mobilityind < 0, ]),
+                                 nrow(phy[phy$lgmuscle < 0, ]),
+                                 nrow(phy[phy$grossmotor < 0, ]),
+                                 nrow(phy[phy$finemotor < 0, ]),
+                                 nrow(phy[apply(phy, 1, function(x) all(x < 0)) == T, ]),
+                                 nrow(phy[apply(phy, 1, function(x) any(x < 0)) == T, ])),
+                       row.names = c(phyvars, "union", "total"))
+phy_miss
+```
+
+```{r Physical}
+p_phy_1 <- ggplot() +
+  geom_histogram(aes(x = phy$br015_), color = "darkblue", 
+                 fill = "lightblue", binwidth = 1) +
+  labs(x = "Exercise frequency")
+grid.arrange(p_phy_1)
+```
+
+
 
 ### Depression
 
