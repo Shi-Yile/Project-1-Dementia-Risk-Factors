@@ -1,0 +1,388 @@
+---
+title: "Bayesian Networks: Introduction"
+output: html_document
+date: '2022-05-26'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/easySHARE/R")
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+```
+
+## Bayesian Networks
+
+Bayesian networks charaterize the joint distribution among a set of random 
+variables via 1) **directed acyclic graph** (DAG) specifying direct dependence 
+relationships between pairs of variables and 2) **local distributions** for each 
+variable.
+
+Graphical representation: the graph will be denoted by $\mathcal{G} = (V,E)$, where $V$ is the 
+*node set* and $E$ is the *edge set*. Each node in $V$ corresponds to one of the 
+variables of interest, and each edge in $E$ represents a direct dependence 
+between two variables; for example, the edge `age`$\rightarrow$`cogscore` means 
+that the cognitive score depends on age. In this case, age is called the *parent*, while cognitive score is called the *child*. We assume that the graph is *acyclic*, that is, paths leading from one variable to itself, e.g. `age`$\rightarrow$`cogscore`$\rightarrow$`age`, which are known as cycles, are not permitted. Note: caution should be exercised when interpreting the edges or arrows; while we can make general statements about direct and indirect dependence relationships based on the graph, making causal statements, i.e. one variable causes another, requires additional assumptions. 
+
+Probabilistic representation: once we have the DAG, we can complete the Bayesian network model by specifying the local distribution of each variable conditioned on its parents. Given the DAG, the global joint distribution of all variables in $V = (x_1, \ldots, x_p)$, is defined from the local distributions via the Markov property. Specifically,
+$$ p(x_1,\ldots, x_p) = \prod_{j=1}^p p(x_j | \Pi_{x_j}),$$
+where $\Pi_{x_j}$ represents the parents of $x_j$ and $p(x_1,\ldots, x_p)$ represents the pmf for discrete variables and pdf for continous variables (or more generally the density with respect to the appropriate dominating measure).
+
+Types of Bayesian networks:
+
+- **Discrete Bayesian networks**: when all random variables are discrete. A natural choice for the local distributions is the multinomial distribution (other common distributions include: binomial, Bernoulli, Poisson).
+- **Continuous Bayesian networks**: when all random variables are continuous. A popular choice for the local distributions is the multivariate normal distribution, referred to as Gaussian Bayesian networks (other common distributions include: student-t, Beta, Dirichlet).
+- **Mixed Bayesian networks**: when random variables are of mixed type, with some continuous and some discrete.
+
+Learning a Bayesian network consists of learning the graphical structure (also known as structural learning) and estimating the parameters of the local distributions.
+
+**Note:** bnlearn is an R package for learning Bayesian networks and can infer discrete Bayesian networks, Gaussian Bayesian networks, or conditional Gaussian networks. The latter is a particular kind of mixed Bayesian networks that assumes continuous variables are Gaussian, and while continuous nodes can have either discrete or continuous parents, *discrete nodes can only have discrete parents*. Thus, it is may be necessary to discretize certain continous nodes. 
+
+## Simple Example
+
+Let's start with a simple example, where we focus on a single country (Italy) and the first wave, with age greater than or equal to 60. 
+
+```{r italy}
+italy = data.frame(read.csv("italy.csv", header = TRUE))
+italy = italy[italy$wave==1,]
+italy = italy[italy$age>=60,]
+dim(italy)
+```
+
+We will focus on cognitive score, age, gender, and education, and discretize age into age groups and cognitive score into bins, representing severe impairment, mild impairment, and cognitively normal.
+
+```{r italyselect}
+italy <- italy %>%  dplyr::select(c(age, female, cogscore, isced1997_r))
+italy <- italy %>% rename(education = isced1997_r)
+italy$age <- cut(italy$age, breaks = c(seq(60,90,5),100), ordered_result = TRUE, right = FALSE)
+italy$cogscore <- cut(italy$cogscore, breaks = c(0,quantile(italy$cogscore, probs = c(.1,.4),na.rm=TRUE),29), ordered_result = TRUE)
+italy$female <- factor(italy$female)
+italy$education <- factor(italy$education, ordered = TRUE)
+head(italy)
+```
+
+```{r italplots, fig.width=4, fig.height=3}
+ggplot() + geom_bar(aes(x = italy$cogscore),color="darkblue", fill="lightblue")+
+  labs(x ="Cogntive impairment")
+ggplot() + geom_bar(aes(x = italy$age),color="darkblue", fill="lightblue")+
+  labs(x ="Age")
+ggplot() + geom_bar(aes(x = italy$education),color="darkblue", fill="lightblue")+
+  labs(x ="Education")
+```
+
+**Note:** age is a demographic variable that is not influenced by other variables; thus, we assume it is a parent node only. Since the mixed networks implemented in bnlearn can not accommodate discrete nodes with continuous parents, we must discretize age into bins. Here, we have used the `cut()` function, but bnlearn also provides a function [`discretize()`](https://www.bnlearn.com/examples/missing-preprocessing/) that may be used. Instead, cognitive score could possibly be treated as continuous; here we have discretized, see also [Crimmins et al. (2011)](https://pubmed.ncbi.nlm.nih.gov/21743047/), based on the quantiles. 
+
+**Note:** we may want to combine some of the higher levels of education, e.g. 5 and 6, due to small counts.
+
+
+### DAG known: learning local distributions
+
+We will start by assuming we know the graphical structure and building the DAG from an empty graph. Age and gender are demographic variables and are not influenced by the other variables; thus, no edges point to either variable. On the other hand, we will assume that age has a direct influence on education (number of people attending universities has increased over the years). Moreover, we know that cognitive decline occurs in dementia as well as in normal ageing and differences in dementia are present in men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/); thus we will assume cognitive scores depend directly on age and gender. Education has also been suggested a risk factor for dementia; thus we assume a direct influence of education on cognitive scores.
+
+
+```{r pacs, message = FALSE}
+library(bnlearn)
+library(Rgraphviz)
+```
+
+```{r dag}
+dag = empty.graph(nodes = c("age", "female","cogscore","education"))
+arc.set = matrix(c("age","cogscore",
+                   "female","cogscore",
+                   "education","cogscore",
+                   "age","education"), 
+                 byrow = TRUE, ncol=2, dimnames =list(NULL,c("from","to")))
+arcs(dag) = arc.set
+graphviz.plot(dag)
+```
+
+We can now estimate the parameters of the local distributions with [`bn.fit`](https://www.bnlearn.com/documentation/man/bn.fit.html). More details on methods can be found in [Scutari and Denis (2021)](https://www.routledge.com/Bayesian-Networks-With-Examples-in-R/Scutari-Denis/p/book/9780367366513). Note: two methods are available: `method = mle`, `method = bayes`. You can also use `custom.fit` for example using penalized regression (see [examples](https://www.bnlearn.com/examples/custom-fitted/)) Here we use the classical Bayesian posterior estimator with imaginary sample size `iss=10`. This provides smoother and more robust estimates than the MLEs based on empirical frequencies, particularly when sparse counts are present. 
+
+```{r bnfit, message = FALSE}
+
+bn.bayes = bn.fit(dag,data=italy, method = "bayes", iss = 10)
+
+bn.bayes$education
+
+bn.fit.barchart(bn.bayes$education)
+
+```
+
+We can observe some trends between education and age. The probability of no education (level 0) descreases with the younger generations, and the probability of higher levels of education increases with younger generations.  
+
+
+```{r condplot, fig.width=9}
+
+bn.fit.barchart(bn.bayes$cogscore)
+
+```
+
+```{r condplot2, fig.width=9}
+
+p1 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education")
+p2 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes$cogscore$prob[,,2,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, No education")
+p3 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Primary education")
+p4 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes$cogscore$prob[,,2,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, Primary education")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+The basic models implemented in bnlearn can contain many parameters and overfit particularly when there are sparse counts. In particular, we would expect smooth conditional probabilities as a function of age, however, the estimates are quite wiggly, for example, compare no education (only 82 individuals) vs primary education (1055 individuals).
+
+### DAG known: learning local distributions via a custom fit
+
+In the following, we provide an example of using a custom fit, with ordered logistic regression using the [`polr()`](https://www.rdocumentation.org/packages/MASS/versions/7.3-57/topics/polr) function. This helps to reduce the number of parameters and produces a smoother fit as a function of age and education. 
+
+```{r bnfit2, message = FALSE}
+library(MASS)
+
+olr.fit =polr(education ~ age, data = italy)
+distedu = predict(olr.fit, newdata= data.frame(age=levels(italy$age)),type="p")
+edu.lv = levels(italy$education)
+age.lv = levels(italy$age)
+distedu = array(t(distedu), dim=c(length(edu.lv),length(age.lv)), 
+                dimnames = list(education = edu.lv, age = age.lv))
+bn.bayes2 = bn.bayes
+bn.bayes2$education = distedu
+
+bn.fit.barchart(bn.bayes2$education)
+```
+
+```{r bnfit2cog, message = FALSE}
+
+olr.fitf =polr(cogscore ~ age + education, data = italy[italy$female==1,])
+olr.fitm =polr(cogscore ~ age + education, data = italy[italy$female==0,])
+edu.lv = levels(italy$education)
+age.lv = levels(italy$age)
+f.lv = levels(italy$female)
+cs.lv = levels(italy$cogscore)
+combos = data.frame(age=rep(age.lv,length(edu.lv)), education=rep(edu.lv,each = length(age.lv)))
+distcsf = predict(olr.fitf, newdata= combos ,type="p")
+distcsm = predict(olr.fitm, newdata= combos ,type="p")
+distcs = array(dim = c(length(cs.lv), length(age.lv), length(f.lv), length(edu.lv)), dimnames = list(cogscore = cs.lv, age = age.lv, female = f.lv, education = edu.lv))
+distcs[,,1,] = array(t(distcsm), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
+distcs[,,2,] = array(t(distcsf), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
+bn.bayes2$cogscore = distcs
+
+bn.fit.barchart(bn.bayes2$cogscore)
+```
+
+
+```{r bnfit2cog2, fig.width=9}
+
+p1 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education")
+p2 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,2,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, No education")
+p3 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Primary education")
+p4 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,2,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
+        labels=levels(italy$age)) +
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, Primary education")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+Compared with the previous figures, the fits are much smoother and reasonable.
+
+### DAG uknown
+
+Of course, the structure of the DAG itself may be unknown in many cases. For example, in the case of dementia and cognitive impairment, we are interested in learning the structure of the DAG to understand the dependencies between dementia risk factors and cognitive impairment to potentially help inform lifestyle interventions, for clinical trials, and to generally improve understanding of dementia. 
+
+However, learning the structure of the DAG is challenging due to massive number of possible DAGs and the discrete, unordered nature of the space. Therefore a number of algorithms have been developed which broadly fall into three classes:
+
+- **constraint-based** structure learning algorithms,
+- **score-based structure** learning algorithms,
+- **hybrid structure** learning algorithms.
+
+First, let's merge the last two levels of education (5 - First stage of tertiary education, 6 – Second stage of tertiary education) into one level representing tertiary education.
+
+```{r edumerge}
+
+italy$education[italy$education == "5" | italy$education == "6"] = "5"
+italy$education = factor(italy$education, order = TRUE)
+
+```
+
+#### Constraint-based algorithms
+
+Constraint-based algorithms rely on carrying out a series of conditional independence 
+tests to construct the DAG. bnlearn implements different tests for conditional independence 
+(including the likelihood ratio, G^2 (or mutual information), or Pearson's chi sq). For example:
+
+```{r citests}
+# Testing for independence between age and education
+ci.test("age", "education", test = "mi", data = italy)
+
+# Testing for independence between gender and education
+ci.test("female", "education", test = "mi", data = italy)
+# Testing for conditional independence between gender and education given age
+ci.test("female", "education", "age", test = "mi", data = italy)
+
+# Testing for conditional independence between cognitive score and education given age and gender
+ci.test("cogscore", "education", c("age", "female"), test = "mi", data = italy)
+```
+
+A number of [constraint-based algorithms](https://www.bnlearn.com/documentation/man/constraint.html) are implemented in bnlearn. We can create a set of blacklist edges (e.g. anything pointing to demongraphic variables to be passed into the function).
+
+```{r const}
+# Create blacklist of edges
+myblacklist = matrix(c("cogscore","age",
+                   "female","age",
+                   "education","age",
+                   "age","female",
+                   "education","female",
+                   "cogscore","female",
+                   "cogscore","education"), 
+                 byrow = TRUE, ncol=2, dimnames =list(NULL,c("from","to")))
+
+# Use incremental association Markov blanket to learn the DAG
+italy.iamb =iamb(italy, blacklist = myblacklist, test="mi")
+graphviz.plot(italy.iamb)
+```
+
+Try changing the [algorithms](https://www.bnlearn.com/documentation/man/constraint.html) or test and see how that influences the graph structure. 
+
+#### Score-based algorithms
+
+Score-based algorithms rely on specified network score to assess the fit of a DAG and run a search algorithm over the space of DAGs to find the one with the highest score. 
+
+```{r scores}
+# For the score-based implementations, missing variables must be dropped (or imputed) 
+italy_narm = drop_na(italy)
+dim(italy)
+dim(italy_narm)
+
+# Two different scores: Bayesian information criterion (BIC) or Bayesian Dirichlet equivalent uniform posterior probabiity (BDE)
+score(dag, data= italy_narm, type = "bic")
+score(dag, data= italy_narm, type = "bde",iss=10)
+```
+
+Let's compare our DAG with another one that contains an edge from gender to education
+
+```{r scores2}
+dag2 = dag
+dag2 = set.arc(dag2, from ="female", to = "education")
+
+score(dag2, data= italy_narm, type = "bic")
+score(dag2, data= italy_narm, type = "bde",iss=10)
+```
+
+Our original DAG provides a better fit according to both scores. 
+
+A simple example of a search algorithm is *hill-climbing*, which starts from an empty DAG (by default) and adds, removes, or reverses edges one at a time and picks the move which increases the score the most. This is implemented in the function `hc()`. We can create a set of blacklist edges (e.g. anything pointing to demongraphic variables to be passed into the function).
+
+```{r scorehc}
+# Create blacklist of edges
+myblacklist = matrix(c("cogscore","age",
+                   "female","age",
+                   "education","age",
+                   "age","female",
+                   "education","female",
+                   "cogscore","female",
+                   "cogscore","education"), 
+                 byrow = TRUE, ncol=2, dimnames =list(NULL,c("from","to")))
+
+# Use hill-climbing to determine the DAG
+italy.hc =hc(italy_narm, blacklist = myblacklist, score="loglik")
+graphviz.plot(italy.hc)
+```
+
+Try changing the [network score](https://www.bnlearn.com/documentation/man/network.scores.html) and see how that influences the estimated DAG structure. Try also changing the search algorithm to [tabu](https://www.bnlearn.com/documentation/man/hc.html).
+
+#### Plotting BN networks
+
+We have already seen examples of how to plot and visualize BN networks both in terms of the DAG, as well as the local conditional probabilities. An additional visualization that may be of interest is provided by the function `graphviz.chart`, which combines the DAG and bar charts. For each node, the bar chart of the marginal distribution is drawn and the bar charts are linked with arrows representing the edges in the graph. We can also condition on a specific event, for example `female =1`, also referred to as evidence and plot the DAG-barchart given the evidence.
+
+```{r hcfit, message=FALSE}
+
+# Let's fit the local distributions corresponding to DAG found by hc using ordered logistic regression
+italy.hc.fit = bn.fit(italy.hc, data = italy, method = "bayes", iss = 10)
+
+edu.olr.fitf =polr(education ~ age, data = italy[italy$female==1,])
+edu.olr.fitm =polr(education ~ age, data = italy[italy$female==0,])
+edu.lv = levels(italy$education)
+age.lv = levels(italy$age)
+f.lv = levels(italy$female)
+combos = data.frame(age=age.lv)
+disteduf = predict(edu.olr.fitf, newdata= combos ,type="p")
+distedum = predict(edu.olr.fitm, newdata= combos ,type="p")
+distedu = array(dim = c(length(edu.lv), length(age.lv), length(f.lv)), dimnames = list(education = edu.lv, age = age.lv, female = f.lv))
+distedu[,,1] = array(t(distedum), dim=c(length(edu.lv), length(age.lv), 1))
+distedu[,,2] = array(t(disteduf), dim=c(length(edu.lv), length(age.lv), 1))
+italy.hc.fit$education  = distedu
+
+olr.fitf =polr(cogscore ~ age + education, data = italy[italy$female==1,])
+olr.fitm =polr(cogscore ~ age + education, data = italy[italy$female==0,])
+cs.lv = levels(italy$cogscore)
+combos = data.frame(age=rep(age.lv,length(edu.lv)), education=rep(edu.lv,each = length(age.lv)))
+distcsf = predict(olr.fitf, newdata= combos ,type="p")
+distcsm = predict(olr.fitm, newdata= combos ,type="p")
+distcs = array(dim = c(length(cs.lv), length(age.lv), length(f.lv), length(edu.lv)), dimnames = list(cogscore = cs.lv, age = age.lv, female = f.lv, education = edu.lv))
+distcs[,,1,] = array(t(distcsm), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
+distcs[,,2,] = array(t(distcsf), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
+italy.hc.fit$cogscore  = distcs
+```
+
+```{r grain, message=FALSE}
+# We will need the gRain package
+library(gRain)
+```
+
+
+```{r hcplot,fig.show='hold',fig.width = 3, fig.height = 3,out.width='50%'}
+# Use the gRain package to set evidence (condition on an event)
+junction = compile(as.grain(italy.hc.fit))
+jf = setEvidence(junction, nodes = "female", states = "1")
+
+graphviz.chart(italy.hc.fit, grid = TRUE, main = "Original BN")
+graphviz.chart(as.bn.fit(jf,including.evidence = TRUE), grid = TRUE, 
+               bar.col = c(age = "black", female = "grey", education = "black", 
+                           cogscore = "black"),
+              strip.bg = c(age = "transparent", female = "grey", education = "transparent", 
+                           cogscore = "transparent"),
+               main = "BN with Evidence")
+```
