@@ -59,9 +59,9 @@ We will focus on cognitive score, age, gender, and education, and discretize age
 
 ```{r italyselect}
 # extract the specified subset from the dataset 
-italy <- italy %>%  dplyr::select(c(age, female, cogscore, isced1997_r))
+italy <- italy %>%  dplyr::select(c(age, female, cogscore, isced1997_r, bmi))
 # rename the education column
-italy <- italy %>% rename(education = isced1997_r)
+italy <- italy %>% rename(education = isced1997_r, obesity = bmi)
 # discretize the age as it will be the parent node in the network
 italy$age <- cut(italy$age, breaks = c(seq(60,90,5),100), 
                  ordered_result = TRUE, right = FALSE)    
@@ -73,10 +73,11 @@ italy$cogscore <- cut(italy$cogscore,
 # factorize the female  and education columns
 italy$female <- factor(italy$female)
 italy$education <- factor(italy$education, ordered = TRUE)
+italy$obesity <- factor(italy$obesity, ordered = TRUE)
 head(italy)
 ```
 
-```{r italplots, fig.width=5, fig.height=5}
+```{r italplots, fig.width=8, fig.height=5.5}
 # histograms to display the local distributions 
 p1 <- ggplot() + geom_bar(aes(x = italy$cogscore),color="darkblue", fill="lightblue")+
   labs(x ="Cogntive impairment")
@@ -84,7 +85,9 @@ p2 <- ggplot() + geom_bar(aes(x = italy$age),color="darkblue", fill="lightblue")
   labs(x ="Age")
 p3 <- ggplot() + geom_bar(aes(x = italy$education),color="darkblue", fill="lightblue")+
   labs(x ="Education")
-grid.arrange(p1, p2, p3, nrow = 3)
+p4 <- ggplot() + geom_bar(aes(x = italy$obesity), color = "darkblue", fill = "lightblue") +
+  labs(x = "Obesity")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
 ```
 
 **Note:** age is a demographic variable that is not influenced by other variables; thus, we assume it is a parent node only. Since the mixed networks implemented in bnlearn can not accommodate discrete nodes with continuous parents, we must discretize age into bins. Here, we have used the `cut()` function, but bnlearn also provides a function [`discretize()`](https://www.bnlearn.com/examples/missing-preprocessing/) that may be used. Instead, cognitive score could possibly be treated as continuous; here we have discretized, see also [Crimmins et al. (2011)](https://pubmed.ncbi.nlm.nih.gov/21743047/), based on the quantiles. 
@@ -97,19 +100,21 @@ grid.arrange(p1, p2, p3, nrow = 3)
 We will start by assuming we know the graphical structure and building the DAG from an empty graph. Age and gender are demographic variables and are not influenced by the other variables; thus, no edges point to either variable. On the other hand, we will assume that age has a direct influence on education (number of people attending universities has increased over the years). Moreover, we know that cognitive decline occurs in dementia as well as in normal ageing and differences in dementia are present in men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/); thus we will assume cognitive scores depend directly on age and gender. Education has also been suggested a risk factor for dementia; thus we assume a direct influence of education on cognitive scores.
 
 
-```{r pacs, message = FALSE}
+```{r pacs, message = FALSE, warning = FALSE}
 library(bnlearn)
 library(Rgraphviz)
 ```
 
 ```{r dag}
 # initialize the DAG with nodes 
-dag = empty.graph(nodes = c("age", "female","cogscore","education"))
+dag = empty.graph(nodes = c("age", "female","cogscore","education", "obesity"))
 # construct edge matrix
 arc.set = matrix(c("age","cogscore",    # age -> cogscore
                    "female","cogscore",    # female -> cogscore   
                    "education","cogscore",    # education -> cogscore
-                   "age","education"),     # age -> education
+                   "obesity", "cogscore",    # obesity -> cogscore
+                   "age","education",    # age -> education
+                   "age", "obesity"),     
                  byrow = TRUE, ncol=2, dimnames =list(NULL,c("from","to")))
 # generate DAG with specified edges
 arcs(dag) = arc.set
@@ -124,7 +129,11 @@ bn.bayes = bn.fit(dag, data = italy, method = "bayes", iss = 10)
 
 bn.bayes$education
 
+bn.bayes$obesity
+
 bn.fit.barchart(bn.bayes$education)
+
+bn.fit.barchart(bn.bayes$obesity)
 
 ```
 
@@ -140,33 +149,33 @@ bn.fit.barchart(bn.bayes$cogscore)
 ```{r condplot2, fig.width=9}
 # trend of cognitive score in different gender and education groups, as age increases 
 p1 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Underweight")
 p2 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes$cogscore$prob[,,2,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, No education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Normal")
 p3 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes$cogscore$prob[,,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1,3]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Primary education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Overweight")
 p4 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes$cogscore$prob[,,2,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes$cogscore$prob[,,1,1,4]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, Primary education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Obese")
 grid.arrange(p1, p2, p3, p4, nrow = 2)
 ```
 
@@ -180,33 +189,41 @@ In the following, we provide an example of using a custom fit, with ordered logi
 library(MASS)
 # fit a ordered logistic regression of education over age
 olr.fit =polr(education ~ age, data = italy)
+olr.fit.2 <- polr(obesity ~ education, data = italy)
 # predicted distribution using previous regression
 distedu = predict(olr.fit, newdata= data.frame(age=levels(italy$age)),type="p")
+distobe = predict(olr.fit.2, 
+                  newdata= data.frame(education=levels(italy$education)),type="p")
 edu.lv = levels(italy$education)
+obe.lv <- levels(italy$obesity)
 age.lv = levels(italy$age)
 distedu = array(t(distedu), dim=c(length(edu.lv),length(age.lv)), 
                 dimnames = list(education = edu.lv, age = age.lv))
+distobe = array(t(distobe), dim=c(length(obe.lv),length(edu.lv)), 
+                dimnames = list(obesity = obe.lv, education = edu.lv))
 bn.bayes2 = bn.bayes
 # update the probability of education with the predicted matrix
 bn.bayes2$education = distedu
+bn.bayes2$obesity <- distobe
 # histograms of new conditional probabilities 
 bn.fit.barchart(bn.bayes2$education)
+bn.fit.barchart(bn.bayes2$obesity)
 ```
 
 ```{r bnfit2cog, message = FALSE}
 
-olr.fitf =polr(cogscore ~ age + education, data = italy[italy$female==1,])
-olr.fitm =polr(cogscore ~ age + education, data = italy[italy$female==0,])
+olr.fitf =polr(cogscore ~ age + education + obesity, data = italy[italy$female==1,])
+olr.fitm =polr(cogscore ~ age + education + obesity, data = italy[italy$female==0,])
 edu.lv = levels(italy$education)
 age.lv = levels(italy$age)
 f.lv = levels(italy$female)
 cs.lv = levels(italy$cogscore)
-combos = data.frame(age=rep(age.lv,length(edu.lv)), education=rep(edu.lv,each = length(age.lv)))
+combos = data.frame(age=rep(age.lv,length(edu.lv)), education=rep(edu.lv,each = length(age.lv)), obesity = rep(obe.lv, each = length(edu.lv)*length(age.lv)))
 distcsf = predict(olr.fitf, newdata= combos ,type="p")
 distcsm = predict(olr.fitm, newdata= combos ,type="p")
-distcs = array(dim = c(length(cs.lv), length(age.lv), length(f.lv), length(edu.lv)), dimnames = list(cogscore = cs.lv, age = age.lv, female = f.lv, education = edu.lv))
-distcs[,,1,] = array(t(distcsm), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
-distcs[,,2,] = array(t(distcsf), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv)))
+distcs = array(dim = c(length(cs.lv), length(age.lv), length(f.lv), length(edu.lv), length(obe.lv)), dimnames = list(cogscore = cs.lv, age = age.lv, female = f.lv, education = edu.lv, obesity = obe.lv))
+distcs[,,1,,] = array(t(distcsm), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv), length(obe.lv)))
+distcs[,,2,,] = array(t(distcsf), dim=c(length(cs.lv), length(age.lv), 1, length(edu.lv), length(obe.lv)))
 bn.bayes2$cogscore = distcs
 
 bn.fit.barchart(bn.bayes2$cogscore)
@@ -216,33 +233,33 @@ bn.fit.barchart(bn.bayes2$cogscore)
 ```{r bnfit2cog2, fig.width=9}
 
 p1 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education, Underweight")
 p2 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes2$cogscore$prob[,,2,1]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, No education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education, Normal")
 p3 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1,3]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, Primary education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education, Overweight")
 p4 = ggplot(mapping = aes(x = rep(seq(1:length(levels(italy$age))),3),
-                     y=matrix(t(bn.bayes2$cogscore$prob[,,2,2]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
+                     y=matrix(t(bn.bayes2$cogscore$prob[,,1,1,4]), ncol =1), color = rep(levels(italy$cogscore), each = length(levels(italy$age))))) + 
   geom_point() +
   geom_line() +
   scale_x_discrete(breaks=seq(1:length(levels(italy$age))),
         labels=levels(italy$age)) +
-  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Female, Primary education")
+  labs(x = "Age", y= "Conditional probability", color = "Cognitive score", title ="Male, No education, Obese")
 grid.arrange(p1, p2, p3, p4, nrow = 2)
 ```
 
@@ -276,14 +293,17 @@ tests to construct the DAG. bnlearn implements different tests for conditional i
 ```{r citests}
 # Testing for independence between age and education (mutual information)
 ci.test("age", "education", test = "mi", data = italy)
+ci.test("education", "obesity", test = "mi", data = italy)
 
 # Testing for independence between gender and education
 ci.test("female", "education", test = "mi", data = italy)
+ci.test("female", "obesity", test = "mi", data = italy)
 # Testing for conditional independence between gender and education given age
-ci.test("female", "education", "age", test = "mi", data = italy)
+ci.test("female", "obesity", "education", test = "mi", data = italy)
 
 # Testing for conditional independence between cognitive score and education given age and gender
 ci.test("cogscore", "education", c("age", "female"), test = "mi", data = italy)
+ci.test("cogscore", "obesity", c("education", "age", "female"), test = "mi", data = italy)
 ```
 
 A number of [constraint-based algorithms](https://www.bnlearn.com/documentation/man/constraint.html) are implemented in bnlearn. We can create a set of blacklist edges (e.g. anything pointing to demongraphic variables to be passed into the function).
@@ -390,7 +410,7 @@ distcs[,,2,] = array(t(distcsf), dim=c(length(cs.lv), length(age.lv), 1, length(
 italy.hc.fit$cogscore  = distcs
 ```
 
-```{r grain, message=FALSE}
+```{r grain, message=FALSE, warning=FALSE}
 # We will need the gRain package
 library(gRain)
 ```

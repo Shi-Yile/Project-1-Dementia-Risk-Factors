@@ -269,8 +269,7 @@ grid.arrange(p_obesity_1, p_obesity_2, nrow = 1)
 \end{itemize}
 
 ```{r Physical}
-phyvars <- c("br015_", "maxgrip", "adla", "iadlza", "mobilityind", 
-             "lgmuscle", "grossmotor", "finemotor")
+phyvars <- c("br015_", "maxgrip", "adla", )
 phy <- easySHARE_rel8_0_0[phyvars]
 phy_miss <- data.frame(count = c(nrow(phy[phy$br015_ < 0, ]),
                                  nrow(phy[phy$maxgrip < 0, ]),
