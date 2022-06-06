@@ -335,3 +335,40 @@ socialvars <- c("mar_stat", "hhsize", "partnerinhh", "int_partner",
 ```
 
 ### Air Pollution
+
+
+
+
+
+
+
+
+
+
+
+
+### Variables Selection
+
+```{r}
+vars <- c("age", "female", "isced1997_r", "partnerinhh", "ch007_hh", "ch007_km", "sp002_mod", "sp008_", "chronic_mod", "hc002_mod", "hc012_", "hc029_", "eurod", "adla", "iadlza", "mobilityind", "lgmuscle", "grossmotor", "finemotor", "br015_", "bmi", "bmi2", "smoking", "ever_smoked", "br010_mod", "ep005_", "co007_", "recall_1", "recall_2",  "numeracy_2", "wave", "country")
+subset <- easySHARE_rel8_0_0[vars]
+w5 <- subset[subset$wave == 5, ]
+summary(w5)
+cat("\n")
+summary(easySHARE_rel8_0_0$orienti[easySHARE_rel8_0_0$wave == 5])
+```
+
+```{r}
+nrow(w5[apply(w5, 1, function(x) all(x >= 0)) == T, ])
+```
+
+```{r}
+table(w5$country)
+```
+
+```{r}
+country_high <- c(31, 20, 18, 13, 14, 11, 23, 12, 17)
+w5_high <- w5[w5$country %in% country_high, ]
+nrow(w5_high[apply(w5_high, 1, function(x) all(x >= 0)) == T, ])
+```
+
