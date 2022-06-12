@@ -19,7 +19,7 @@ load("easySHARE_rel8_0_0.rda")
 
 Load packages:
 
-```{r packs, message = FALSE}
+```{r packs, include = FALSE}
 library(ggplot2)
 library(tidyverse)
 library(gridExtra)
@@ -83,6 +83,279 @@ According to expertise knowledge, if we focus on the influence of risk factors o
 Extract variables related to modifiable risk factors identified in literature: education, hearing loss, traumatic brain injury, hypertension, alcohol consumption, smoking, obesity, physical activity, depression, social isolation, diabetes, and air pollution [Livingston et al. (2020)](https://www.thelancet.com/article/S0140-6736(20)30367-6/fulltext). Refer to the easySHARE guide for a description of the variables available. You may also consider other relevant risk factors, along with an explanation and motivation. Gender and age are also relevant variables to consider, e.g. to explore differences between men and women [Beam et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/30010124/).
 
 The SHARE project is a multi-country longitudinal study. You may decide to focus on a single or compare multiple countries. 
+
+
+## Variables Selection
+
+According to the work of [Livingston et al. (2020)](https://www.thelancet.com/article/S0140-6736(20)30367-6/fulltext) and [easySHARE data  guide](http://www.share-project.org/fileadmin/pdf_documentation/easySHARE_Release_8.0.0_ReleaseGuide.pdf), we select the following risk factors with specific variables in the easySHARE dataset.
+
+
+```{r}
+vars <- c("age", "female", "wave", "country", "mergeid",
+          "isced1997_r",    # education
+          "partnerinhh", "ch007_hh", "ch007_km", 
+          "sp002_mod", "sp008_",    # social isolation 
+          "chronic_mod",    # chronic disease
+          # "hc002_mod", "hc012_", "hc029_",    # health care
+          "eurod", # depression
+          "adla", "iadlza", "mobilityind", "lgmuscle", "grossmotor", 
+          "finemotor", "br015_",    # physical activity
+          "bmi2",    # obesity
+          "smoking", "ever_smoked",    # smoking
+          "br010_mod",    # alcohol 
+          "ep005_",    # job situation
+          "co007_",    # income
+          "recall_1", "recall_2", "numeracy_2")  
+```
+
+```{r}
+subset <- easySHARE_rel8_0_0[vars]
+w5 <- subset[subset$wave == 5, ]
+w5_num <- subset(w5, select = -mergeid)
+mis_prop <- apply(w5_num, 2, function(x) length(x[x < 0]) / length(x))
+sort(round(mis_prop, 4), decreasing = TRUE)
+```
+
+```{r}
+idx_com_5 <- which(apply(w5_num, 1, function(x) all(x >= 0)) == TRUE)
+cat("The number of complete observations in wave 5 is: ", length(idx_com_5), "\n")
+cat("The proportion of complete observations in wave 5 is: ", 
+    round(length(idx_com_5) / nrow(w5), 4))
+```
+
+```{r}
+w5_com <- w5[idx_com_5, ]
+w5_com <- w5_com %>% 
+  rename(id = mergeid,
+         education = isced1997_r, 
+         alcohol = br010_mod,
+         obesity = bmi2,
+         chronic = chronic_mod,
+         work = ep005_,
+         income = co007_,
+         depression = eurod) %>% 
+  mutate_at(c("ch007_hh", "ch007_km", "sp002_mod", "sp008_", 
+              "smoking", "ever_smoked"), ~if_else(.x == 5, 0, 1)) %>%
+  mutate(smoke = smoking + ever_smoked,
+         physical = adla + iadlza + mobilityind + lgmuscle + grossmotor + 
+           finemotor + br015_,
+         social = ch007_hh + ch007_km + sp002_mod + sp008_,
+         cogscore = recall_1 + recall_2 + numeracy_2) %>% 
+  dplyr::select(c(age, id, female, education, alcohol, obesity, chronic, work, 
+                  income, depression, smoke, physical, social,
+                  cogscore, country))
+
+w5_work_97_id <- w5_com$id[w5_com$work == 97]
+w5_edu_9597_id <- w5_com$id[w5_com$education > 90]
+w5_wrong_id <- union(w5_work_97_id, w5_edu_9597_id)
+w5_com <- w5_com[w5_com$id %in% w5_wrong_id == FALSE, ]
+
+w5_com$age <- cut(w5_com$age, breaks = c(seq(60,90,5),100), 
+                  ordered_result = TRUE, right = FALSE)
+w5_com$cogscore <- cut(w5_com$cogscore, 
+                       breaks = c(0, quantile(w5_com$cogscore, 
+                                              probs = c(0.1, 0.4)), 29), 
+                       ordered_result = TRUE)
+w5_com$female <- factor(w5_com$female)
+w5_com$education <- factor(w5_com$education, ordered = TRUE)
+w5_com$alcohol <- factor(w5_com$alcohol, ordered = TRUE)
+w5_com$obesity <- factor(w5_com$obesity, ordered = TRUE)
+w5_com$chronic <- cut(w5_com$chronic, breaks = c(0, 1, 3, max(w5_com$chronic)),
+                       ordered_result = TRUE, right = FALSE)
+w5_com$work <- factor(w5_com$work, ordered = TRUE)
+w5_com$income <- factor(w5_com$income, ordered = TRUE)
+w5_com$depression <- cut(w5_com$depression, breaks = c(0, 4, 8, 12),
+                         ordered_result = TRUE, right = FALSE)
+w5_com$smoke <- factor(w5_com$smoke, ordered = TRUE)
+w5_com$physical <- cut(w5_com$physical, breaks = c(0, 2, 5, 29), 
+                       ordered_result = TRUE, right = FALSE)
+w5_com$social <- factor(w5_com$social, ordered = TRUE)
+```
+
+```{r}
+sort(table(w5_com$country), decreasing = TRUE)
+country_high <- c(31, 20, 18, 13, 14, 11, 23, 12, 17)
+w5_com_high <- w5_com[w5_com$country %in% country_high, ]
+w5_com_low <- w5_com[setdiff(row.names(w5_com), row.names(w5_com_high)),]
+```
+
+```{r}
+w5_12 <- w5_com[w5_com$country == 12, ]
+head(w5_12)
+```
+
+```{r, include = FALSE}
+library(bnlearn)
+library(Rgraphviz)
+```
+
+```{r}
+dag <- empty.graph(nodes = c("age", "female", "cogscore", "education", 
+                             "obesity", "alcohol", "smoke", "work", "income",
+                             "depression", "social"))
+arc.set <- matrix(c("age", "education",
+                    "age", "physical",
+                    "age", "cogscore",
+                    "female", "education",
+                    "female", "work", 
+                    ""))
+```
+
+
+```{r}
+myblacklist <- matrix(c("cogscore","age",
+                        "cogscore","female",
+                        "cogscore","education",
+                        "cogscore", "alcohol",
+                        "cogscore", "obesity",
+                        "cogscore", "smoke",
+                        "cogscore", "chronic",
+                        "cogscore", "work",
+                        "cogscore", "income",
+                        "cogscore", "depression",
+                        "cogscore", "physical",
+                        "cogscore", "social",
+                        "female","age",
+                        "age","female",
+                        "education","age",
+                        "education","female",
+                        "alcohol", "education",
+                        "alcohol", "age",
+                        "alcohol", "female",
+                        "obesity", "alcohol",
+                        "obesity", "education",
+                        "obesity", "age",
+                        "obesity", "female",
+                        "smoke", "alcohol",
+                        "smoke", "education",
+                        "smoke", "age",
+                        "smoke", "female",
+                        "chronic", "smoke",
+                        "chronic", "obesity",
+                        "chronic", "alcohol",
+                        "chronic", "education",
+                        "chronic", "age",
+                        "chronic", "female",
+                        "work", "smoke",
+                        "work", "chronic",
+                        "work", "obesity",
+                        "work", "alcohol",
+                        "work", "education",
+                        "work", "age",
+                        "work", "female",
+                        "income", "work",
+                        "income", "smoke",
+                        "income", "chronic",
+                        "income", "obesity",
+                        "income", "alcohol",
+                        "income", "education",
+                        "income", "age",
+                        "income", "female",
+                        "depression", "work",
+                        "depression", "income",
+                        "depression", "education",
+                        "depression", "age",
+                        "depression", "female",
+                        "physical", "chronic",
+                        "physical", "obesity",
+                        "physical", "alcohol",
+                        "physical", "education",
+                        "physical", "age",
+                        "physical", "female"
+                        # "social", "chronic",
+                        # "social", "smoke",
+                        # "social", "obesity",
+                        # "social", "alcohol",
+                        # "social", "education",
+                        # "social", "age",
+                        # "social", "female"
+                        ), 
+                      byrow = TRUE, ncol=2, dimnames =list(NULL,c("from","to")))
+```
+
+
+```{r}
+# using all complete data in wave 5
+w5_com.iamb <- iamb(subset(drop_na(w5_com), select = -c(id, country)), 
+                   blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com.iamb)
+
+w5_com.pc <- pc.stable(subset(drop_na(w5_com), select = -c(id, country)), 
+                      blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com.pc)
+```
+
+```{r}
+# using complete data in high income country in wave 5
+w5_com_high.iamb <- iamb(subset(drop_na(w5_com_high), select = -c(id, country)), 
+                   blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com_high.iamb)
+
+w5_com_high.pc <- pc.stable(subset(drop_na(w5_com_high), 
+                                   select = -c(id, country)), 
+                      blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com_high.pc)
+```
+
+```{r}
+# using complete data in low income country in wave 5
+w5_com_low.iamb <- iamb(subset(drop_na(w5_com_low), select = -c(id, country)), 
+                   blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com_low.iamb)
+
+w5_com_low.pc <- pc.stable(subset(drop_na(w5_com_low), select = -c(id, country)), 
+                      blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_com_low.pc)
+```
+
+```{r}
+w5_12.iamb <- iamb(subset(drop_na(w5_12), select = -c(id, country)), 
+                   blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_12.iamb)
+
+w5_12.pc <- pc.stable(subset(drop_na(w5_12), select = -c(id, country)), 
+                      blacklist = myblacklist, test = "mi")
+graphviz.plot(w5_12.pc)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Education
 
@@ -335,40 +608,3 @@ socialvars <- c("mar_stat", "hhsize", "partnerinhh", "int_partner",
 ```
 
 ### Air Pollution
-
-
-
-
-
-
-
-
-
-
-
-
-### Variables Selection
-
-```{r}
-vars <- c("age", "female", "isced1997_r", "partnerinhh", "ch007_hh", "ch007_km", "sp002_mod", "sp008_", "chronic_mod", "hc002_mod", "hc012_", "hc029_", "eurod", "adla", "iadlza", "mobilityind", "lgmuscle", "grossmotor", "finemotor", "br015_", "bmi", "bmi2", "smoking", "ever_smoked", "br010_mod", "ep005_", "co007_", "recall_1", "recall_2",  "numeracy_2", "wave", "country")
-subset <- easySHARE_rel8_0_0[vars]
-w5 <- subset[subset$wave == 5, ]
-summary(w5)
-cat("\n")
-summary(easySHARE_rel8_0_0$orienti[easySHARE_rel8_0_0$wave == 5])
-```
-
-```{r}
-nrow(w5[apply(w5, 1, function(x) all(x >= 0)) == T, ])
-```
-
-```{r}
-table(w5$country)
-```
-
-```{r}
-country_high <- c(31, 20, 18, 13, 14, 11, 23, 12, 17)
-w5_high <- w5[w5$country %in% country_high, ]
-nrow(w5_high[apply(w5_high, 1, function(x) all(x >= 0)) == T, ])
-```
-
