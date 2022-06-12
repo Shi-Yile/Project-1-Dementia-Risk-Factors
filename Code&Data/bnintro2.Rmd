@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("~/Documents/GitHub/SwDS_DementiaRisk/R")
+#setwd("~/Documents/GitHub/SwDS_DementiaRisk/R")
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
@@ -21,7 +21,7 @@ library(Rgraphviz)
 We extend our simple example to include longitudinal observations for patients and also added another variable representing drinking behavior in the last three months (last six months in wave one). Let's start with some simple data cleaning and wrangling steps: check out the [data wrangling cheat sheet](https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf) and other [cheat sheets](https://www.rstudio.com/resources/cheatsheets/) from RStudio. In particular, we will define a new variable representing visit: baseline, 1st follow-up, 2nd follow-up,.... Then, we pivot the dataset, so that for each individual, we have variables representing their age and cognitive score at each visit. In this case, cognitive score is based only on recall due to high missingness in follow-ups measurements of orientation and numeracy. 
 
 ```{r italy}
-italy = data.frame(read.csv("italy.csv", header = TRUE))
+italy = data.frame(read.csv("italy_2.csv", header = TRUE))
 
 # Extract variables of interest
 italy <- italy %>%  dplyr::select(c(mergeid, wave, age, female, cogscore2, isced1997_r,br010_mod))
@@ -49,6 +49,7 @@ italy$visit = t$visit[is.finite(t$visit)]
 edu <-  italy %>% pivot_wider(id_cols = mergeid, names_from = visit, values_from = education)
 edu1 <- edu[,2]
 names(edu1) = "education"
+# find the rows missing at baseline and no missing in all columns
 ind_impute = is.na(edu1)&apply(edu[,-1], 1, function(x){sum(is.na(x))!=8})
 edu1[ind_impute,1] <- apply(edu[ind_impute,-1], 1, min, na.rm = T)
 edu1$education[edu1$education == 6] = 5
@@ -86,7 +87,7 @@ italy <- italy %>% pivot_wider(id_cols = c(mergeid), names_from = visit, values_
 italy$education = factor(pull(edu1, "education"),order = T)
 italy$female = factor(pull(female, "0"))
 
-# Drop columns for drinking at follow-up 4:7, no obses
+# Drop columns for drinking at follow-up 5:7, no obses
 italy = italy[,-grep('drinking', names(italy))[6:8]]
 
 # Drop id
