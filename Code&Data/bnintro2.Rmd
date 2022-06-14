@@ -240,7 +240,7 @@ graphviz.chart(as.bn.fit(jf,including.evidence = TRUE), grid = TRUE,
 We can also use the predict function to predict the cognitive score at the follow-up visits. 
 
 ```{r pred}
-italy.pred = predict(italy.fit, data= italy[2,!is.na(italy[2,])], node = "cogscore_1", method = "bayes-lw", prob = T)
+italy.pred = predict(italy.fit, data= italy[2,!is.na(italy[2,])], node = c("cogscore_1", "cogscore_2"), method = "bayes-lw", prob = T)
 italy.pred
 ```
 
