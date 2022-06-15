@@ -249,6 +249,11 @@ bl2 <- matrix(cbind(rf_score[!rf_score %in% c("age", "female", "education")],
                     "education"), ncol = 2,
               dimnames = list(NULL, c("from", "to")))
 bl <- unique(rbind(bl, bl2), MARGIN = 1)
+# no arrow from depression as it is in mental domain
+bl2 <- matrix(cbind("depression", 
+                    rf_score[!rf_score %in% c("depression", "cogscore")]),
+              ncol = 2, dimnames = list(NULL, c("from", "to")))
+bl <- unique(rbind(bl, bl2), MARGIN = 1)
 # smoking status and drinking behaviour are not influenced by obesity, chronic diseases or physical activity frequency
 bl <- rbind(bl, 
             matrix(c("obesity", "smoking",
@@ -256,53 +261,104 @@ bl <- rbind(bl,
                      "chronic", "smoking",
                      "chronic", "alcohol",
                      "physical", "smoking",
-                     "physical", "alcohol"),
+                     "physical", "alcohol",
+                     "income", "work"),
                    byrow = TRUE, ncol = 2, 
                    dimnames = list(NULL, c("from", "to"))))
 
 ```
 
-
 ```{r}
-# using all complete data in wave 5
-w5_.iamb <- iamb(subset(w5_, select = -c(id, country)), 
-                   blacklist = bl, test = "mi")
+# create a white list
+dag <- empty.graph(nodes = rf_score)
+arc.set <- matrix(c("work", "income",
+                    "social", "depression"),
+                  byrow = TRUE, ncol = 2,
+                  dimnames = list(NULL, c("from", "to")))
+arcs(dag) <- arc.set
+graphviz.plot(dag)
+```
+
+
+```{r, warning = FALSE}
+# use observations in wave 5
+w5_.iamb <- iamb(w5_[rf_score], 
+                 blacklist = bl, whitelist = arc.set, test = "mi")
 graphviz.plot(w5_.iamb)
 ```
+
 ```{r}
-ci.test("social", "depression", c("physical", "chronic", "smoking", "female"), 
-        data = subset(w5_, select = -c(id, country)), test = "mi")
+# test if age or gender has influence on smoking status
+ci.test("smoking", "age", data = w5_[rf_score], test = "mi")
+ci.test("smoking", "female", data = w5_[rf_score], test = "mi")
+ci.test("smoking", "age", "female", data = w5_[rf_score], test = "mi")
+ci.test("smoking", "female", "age", data = w5_[rf_score], test = "mi")
+dag.w5.iamb <- set.arc(w5_.iamb, from = "age", to = "smoking")
+dag.w5.iamb <- set.arc(dag.w5.iamb, from = "female", to = "smoking")
+# score(dag.w5.iamb, data = drop_na(w5_[rf_score]), type = "bic")
+# score(w5_.iamb, data = drop_na(w5_[rf_score]), type = "bic")
+
+# test if alcohol has influence on chronic
 ci.test("chronic", "alcohol", c("age", "obesity"), 
-        data= subset(w5_, select = -c(id, country)), test = "mi")
+        data = w5_[rf_score], test = "mi")
+dag.w5.iamb <- set.arc(dag.w5.iamb, from = "alcohol", to = "chronic")
+
+# drop 
+dag.w5.iamb <- drop.arc(dag.w5.iamb, from = "smoking", to = "income")
+
+score(dag.w5.iamb, data = drop_na(w5_[rf_score]), type = "bic")
+score(w5_.iamb, data = drop_na(w5_[rf_score]), type = "bic")
 ```
 
+```{r}
+w5_.hc <- hc(drop_na(w5_[rf_score]), 
+             blacklist = bl, whitelist = arc.set, score = "aic")
+graphviz.plot(w5_.hc)
+```
+```{r}
+
+```
 
 
 ```{r}
 # using complete data in high income country in wave 5
-w5_high.iamb <- iamb(subset(w5_high, select = -c(id, country)), 
-                   blacklist = bl, test = "mi")
+w5_high.iamb <- iamb(w5_high[rf_score], 
+                   blacklist = bl, whitelist = arc.set, test = "mi")
 graphviz.plot(w5_high.iamb)
 ```
 ```{r}
-ci.test("cogscore", "social", c("age", "education", "depression", "female"), 
-        data = subset(w5_, select = -c(id, country)), test = "mi")
+
+ci.test("work", "education", c("female", "age", "physical"), 
+        data = w5_high[rf_score], test = "mi")
+ci.test("obesity", "depression", c("chronic", "social", "income", "physical"),
+        data = w5_high[rf_score], test = "mi")
+ci.test("obesity", "chronic", data = w5_high[rf_score], test = "mi")
 ```
 
 ```{r}
 # using complete data in low income country in wave 5
-w5_low.iamb <- iamb(subset(w5_low, select = -c(id, country)), 
-                   blacklist = bl, test = "mi")
+w5_low.iamb <- iamb(w5_low[rf_score], 
+                   blacklist = bl, whitelist = arc.set, test = "mi")
 graphviz.plot(w5_low.iamb)
 ```
+```{r}
+ci.test("smoking", "chronic", c("age", "obesity"),
+        data = w5_low[rf_score], test = "mi")
+ci.test("education", "age", data = w5_low[rf_score], test = "mi")
+ci.test("education", "female", data = w5_low[rf_score], test = "mi")
+ci.test("education", "age", "female", data = w5_low[rf_score], test = "mi")
+ci.test("education", "female", "age", data = w5_low[rf_score], test = "mi")
+```
+
+
 
 ```{r}
 w5_12.iamb <- iamb(subset(w5_12, select = -c(id, country)), 
-                   blacklist = bl, test = "mi")
+                   blacklist = bl, whitelist = arc.set, test = "mi")
 graphviz.plot(w5_12.iamb)
 ```
 ```{r}
-ci.test("cogscore", "income", c("age", "education"), 
+ci.test("cogscore", "physical", c("", "education"), 
         data = subset(w5_12, select = -c(id, country)), test = "mi")
 ```
 
