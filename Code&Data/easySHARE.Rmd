@@ -112,18 +112,23 @@ vars <- c("wave", "country", "mergeid",    # identifiers
 ```{r}
 # extract specified columns from the original dataset
 subset <- easySHARE_rel8_0_0[vars]
-# specify wave 5
+# before any processing steps, we convert missing values to NA
+subset[which(subset < 0, arr.ind = TRUE)] = NA
+# specify on wave 5
 w5 <- subset[subset$wave == 5, ]
+```
 
+```{r}
 # the proportion of missing values in each column 
-w5_num <- subset(w5, select = -mergeid)
-mis_prop <- apply(w5_num, 2, function(x) length(x[x < 0]) / length(x))
+mis_prop <- apply(subset(w5, select = -mergeid), 
+                  2, function(x) length(x[is.na(x)]) / length(x))
+cat("The proportion of missing values in each column: \n")
 sort(round(mis_prop, 4), decreasing = TRUE)
 ```
 
 ```{r}
 # number and proportion of observations with missing values
-idx_com_5 <- which(apply(w5_num, 1, function(x) all(x >= 0)) == TRUE)
+idx_com_5 <- which(apply(w5_num, 1, function(x) any(is.na(x))) == FALSE)
 cat("The number of complete observations in wave 5 is: ", length(idx_com_5), "\n")
 cat("The proportion of complete observations in wave 5 is: ", 
     round(length(idx_com_5) / nrow(w5), 4))
@@ -131,11 +136,7 @@ cat("The proportion of complete observations in wave 5 is: ",
 
 ```{r}
 # data processing step
-w5_ <- w5
-# convert missing values to NA
-w5_[which(w5_ < 0, arr.ind = TRUE)] = NA
-
-w5_ <- w5_ %>% 
+w5_ <- w5 %>% 
   # rename the columns using risk factors
   rename(id = mergeid,
          education = isced1997_r, 
@@ -153,23 +154,44 @@ w5_ <- w5_ %>%
   # create indicator for smoking status and cognitive score
   mutate(# smoking = smoking + ever_smoked,
          cogscore = recall_1 + recall_2 + numeracy_2) %>% 
+  # filter individuals at least 60 in wave 5
+  filter(age >= 60) %>%
   # keep risk factors and cognitive score, with country and id 
-  dplyr::select(c(age, id, female, education, alcohol, obesity, chronic, work, 
-                  income, depression, smoking, physical, social,
-                  cogscore, country))
-
-
-w5_work_97_id <- w5_$id[w5_$work == 97]
-w5_edu_9597_id <- w5_$id[w5_$education > 90]
-w5_wrong_id <- union(w5_work_97_id, w5_edu_9597_id)
-w5_ <- w5_[w5_$id %in% w5_wrong_id == FALSE, ]
+  select(c(age, id, female, education, alcohol, obesity, chronic, work, income, 
+           depression, smoking, physical, social, cogscore, country))
 ```
 
+```{r}
+# mergeid of patients with unclear education status
+w5_edu_9597_id <- w5_$id[which(w5_$education > 90)]
+cat(length(w5_edu_9597_id), round(length(w5_edu_9597_id) / nrow(w5_), 4))
+```
+
+```{r}
+# extract the education and work status columns of these patients 
+# as well as their mergeid and the wave of the observations
+subset_ <- subset %>%
+  filter(mergeid %in% w5_edu_9597_id) %>%
+  select(c(mergeid, wave, isced1997_r)) %>%
+  rename(id = mergeid, edu = isced1997_r)
+# count of each category
+table(subset_$edu)
+```
+```{r}
+# mergeid of patients with unclear working status
+w5_work_97_id <- w5_$id[which(w5_$work > 90)]
+cat(length(w5_work_97_id), round(length(w5_work_97_id) / nrow(w5_), 4))
+```
+
+```{r}
+# drop rows of these patients whose education or working status is unclear 
+w5_drop_id <- union(w5_edu_9597_id, w5_work_97_id)
+w5_ <- w5_ %>% filter(!id %in% w5_drop_id)
+```
 
 ```{r}
 # discretize age using cut() function
-w5_$age <- cut(w5_$age, breaks = c(min(w5_$age, na.rm = T), 
-                                   seq(50,90,5), max(w5_$age, na.rm = T)), 
+w5_$age <- cut(w5_$age, breaks = c(seq(60,90,5), max(w5_$age, na.rm = T)), 
                   ordered_result = TRUE, right = FALSE)
 # discretize cognitive score based on 10%(severe) and 40%(mild) quantiles
 w5_$cogscore <- cut(w5_$cogscore, 
@@ -218,8 +240,8 @@ w5_low <- w5_[setdiff(row.names(w5_), row.names(w5_high)),]
 ```
 
 ```{r}
-w5_12 <- w5_[w5_$country == 12, ]
-head(w5_12)
+w5_15 <- w5_[w5_$country == 15, ]
+head(w5_15)
 ```
 
 ```{r, include = FALSE}
@@ -249,11 +271,14 @@ bl2 <- matrix(cbind(rf_score[!rf_score %in% c("age", "female", "education")],
                     "education"), ncol = 2,
               dimnames = list(NULL, c("from", "to")))
 bl <- unique(rbind(bl, bl2), MARGIN = 1)
-# no arrow from depression as it is in mental domain
-bl2 <- matrix(cbind("depression", 
-                    rf_score[!rf_score %in% c("depression", "cogscore")]),
-              ncol = 2, dimnames = list(NULL, c("from", "to")))
-bl <- unique(rbind(bl, bl2), MARGIN = 1)
+# depression is an indicator related to some feelings in the past, hence current habits do not have influence on it
+# bl <- rbind(bl, 
+#             matrix(c("obesity", "depression",
+#                      "alcohol", "depression", 
+#                      "physical", "depression",
+#                      "smoking", "depression"),
+#                    byrow = TRUE, ncol = 2, 
+#                    dimnames = list(NULL, c("from", "to"))))
 # smoking status and drinking behaviour are not influenced by obesity, chronic diseases or physical activity frequency
 bl <- rbind(bl, 
             matrix(c("obesity", "smoking",
@@ -288,36 +313,45 @@ graphviz.plot(w5_.iamb)
 ```
 
 ```{r}
+# test if physical activity frequency has influence on cognitive score
+ci.test("physical", "cogscore", c("education", "age", "female", "depression"),
+        data = w5_[rf_score], test = "mi")
+dag.w5.iamb <- set.arc(w5_.iamb, from = "physical", to = "cogscore")
+
+# test if age or gender has influence on education
+ci.test("education", "age", data = w5_[rf_score], test = "mi")
+ci.test("education", "female", data = w5_[rf_score], test = "mi")
+ci.test("education", "age", "female", data = w5_[rf_score], test = "mi")
+ci.test("education", "female", "age", data = w5_[rf_score], test = "mi")
+dag.w5.iamb <- set.arc(dag.w5.iamb, from = "age", to = "education")
+dag.w5.iamb <- set.arc(dag.w5.iamb, from = "female", to = "education")
+
 # test if age or gender has influence on smoking status
 ci.test("smoking", "age", data = w5_[rf_score], test = "mi")
 ci.test("smoking", "female", data = w5_[rf_score], test = "mi")
 ci.test("smoking", "age", "female", data = w5_[rf_score], test = "mi")
 ci.test("smoking", "female", "age", data = w5_[rf_score], test = "mi")
-dag.w5.iamb <- set.arc(w5_.iamb, from = "age", to = "smoking")
+dag.w5.iamb <- set.arc(dag.w5.iamb, from = "age", to = "smoking")
 dag.w5.iamb <- set.arc(dag.w5.iamb, from = "female", to = "smoking")
-# score(dag.w5.iamb, data = drop_na(w5_[rf_score]), type = "bic")
-# score(w5_.iamb, data = drop_na(w5_[rf_score]), type = "bic")
 
 # test if alcohol has influence on chronic
-ci.test("chronic", "alcohol", c("age", "obesity"), 
+ci.test("chronic", "alcohol", c("depression", "obesity"), 
         data = w5_[rf_score], test = "mi")
 dag.w5.iamb <- set.arc(dag.w5.iamb, from = "alcohol", to = "chronic")
 
-# drop 
-dag.w5.iamb <- drop.arc(dag.w5.iamb, from = "smoking", to = "income")
+# drop some unreasonable arrows
+dag.w5.iamb <- drop.arc(dag.w5.iamb, from = "smoking", to = "social")
+dag.w5.iamb <- drop.arc(dag.w5.iamb, from = "depression", to = "physical")
 
-score(dag.w5.iamb, data = drop_na(w5_[rf_score]), type = "bic")
-score(w5_.iamb, data = drop_na(w5_[rf_score]), type = "bic")
+# display the network after modification above
+graphviz.plot(dag.w5.iamb)
 ```
 
 ```{r}
-w5_.hc <- hc(drop_na(w5_[rf_score]), 
-             blacklist = bl, whitelist = arc.set, score = "aic")
-graphviz.plot(w5_.hc)
+# cross-validation 
+bn.cv(data = w5_[rf_score], bn = dag.w5.iamb, method = "k-fold")
 ```
-```{r}
 
-```
 
 
 ```{r}
@@ -353,9 +387,9 @@ ci.test("education", "female", "age", data = w5_low[rf_score], test = "mi")
 
 
 ```{r}
-w5_12.iamb <- iamb(subset(w5_12, select = -c(id, country)), 
+w5_15.iamb <- iamb(subset(w5_15, select = -c(id, country)), 
                    blacklist = bl, whitelist = arc.set, test = "mi")
-graphviz.plot(w5_12.iamb)
+graphviz.plot(w5_15.iamb)
 ```
 ```{r}
 ci.test("cogscore", "physical", c("", "education"), 
