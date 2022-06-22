@@ -106,9 +106,9 @@ vars <- c("wave", "country", "mergeid",    # identifiers
           "br015_",    # physical activity
           "bmi2",    # obesity
           "smoking",   # smoking
-          "br010_mod",    # alcohol 
+          "br010_mod",    # drinking behaviour 
           "ep005_",    # job situation
-          "co007_",    # income
+          "co007_",    # family economy status
           "recall_1", "recall_2", "numeracy_2")  
 ```
 
@@ -144,13 +144,13 @@ w5_ <- w5 %>%
   # rename the columns using risk factors
   rename(id = mergeid,
          education = isced1997_r, 
-         alcohol = br010_mod,
+         drinking = br010_mod,
          obesity = bmi2,
          chronic = chronic_mod,
          work = ep005_,
-         income = co007_,
+         economy = co007_,
          depression = eurod,
-         physical = br015_,
+         phyactivity = br015_,
          social = partnerinhh) %>% 
   # recode binary(1/5) variables to 0/1 (0 -> 5)
   mutate_at("smoking", 
@@ -163,8 +163,9 @@ w5_ <- w5 %>%
   # filter individuals at least 50 in wave 5
   filter(age >= 50) %>%
   # keep risk factors and cognitive score, with country and id 
-  select(c(age, id, female, education, alcohol, obesity, chronic, work, income, 
-           depression, smoking, physical, social, cogscore, country))
+  dplyr::select(c(age, id, female, education, drinking, obesity, chronic, 
+                  work, economy, depression, smoking, phyactivity, 
+                  social, cogscore, country))
 ```
 
 ```{r}
@@ -178,7 +179,7 @@ cat(length(w5_edu_9597_id), round(length(w5_edu_9597_id) / nrow(w5_), 4))
 # as well as their mergeid and the wave of the observations
 subset_ <- subset %>%
   filter(mergeid %in% w5_edu_9597_id) %>%
-  select(c(mergeid, wave, isced1997_r)) %>%
+  dplyr::select(c(mergeid, wave, isced1997_r)) %>%
   rename(id = mergeid, edu = isced1997_r)
 # count of each category
 table(subset_$edu)
@@ -209,11 +210,11 @@ w5_$female <- factor(w5_$female)
 # factorize education and combine some levels
 w5_$education[w5_$education == 4 | w5_$education == 5 | w5_$education == 6] = 4
 w5_$education <- factor(w5_$education, ordered = TRUE)
-# factorize alcohol and combine some levels
-w5_$alcohol[w5_$alcohol == 2 | w5_$alcohol == 3] = 2
-w5_$alcohol[w5_$alcohol == 4 | w5_$alcohol == 5] = 3
-w5_$alcohol[w5_$alcohol == 6 | w5_$alcohol == 7] = 4
-w5_$alcohol <- factor(w5_$alcohol, ordered = TRUE)
+# factorize drinking and combine some levels
+w5_$drinking[w5_$drinking == 2 | w5_$drinking == 3] = 2
+w5_$drinking[w5_$drinking == 4 | w5_$drinking == 5] = 3
+w5_$drinking[w5_$drinking == 6 | w5_$drinking == 7] = 4
+w5_$drinking <- factor(w5_$drinking, ordered = TRUE)
 # factorize obesity 
 w5_$obesity <- factor(w5_$obesity, ordered = TRUE)
 # discretize chronic disease 
@@ -221,17 +222,17 @@ w5_$chronic <- cut(w5_$chronic, breaks = c(0, 1, 3, max(w5_$chronic)+1),
                    ordered_result = TRUE, right = FALSE)
 # factorize work status
 w5_$work <- factor(w5_$work, ordered = TRUE)
-# factorize income
-w5_$income <- factor(w5_$income, ordered = TRUE)
+# factorize economy
+w5_$economy <- factor(w5_$economy, ordered = TRUE)
 # discretize depression
 w5_$depression <- cut(w5_$depression, breaks = c(0, 2, 5, 13),
                          ordered_result = TRUE, right = FALSE)
 # factorize smoking status
 w5_$smoking <- factor(w5_$smoking, ordered = TRUE)
-# factorize physical activity frequency and combine some levels
-w5_$physical[w5_$physical == 2 | w5_$physical == 3] = 2
-w5_$physical[w5_$physical == 4] = 3
-w5_$physical <- factor(w5_$physical, ordered = TRUE)
+# factorize phyactivity activity frequency and combine some levels
+w5_$phyactivity[w5_$phyactivity == 2 | w5_$phyactivity == 3] = 2
+w5_$phyactivity[w5_$phyactivity == 4] = 3
+w5_$phyactivity <- factor(w5_$phyactivity, ordered = TRUE)
 # factorize social status and combine some levels
 w5_$social[w5_$social == 3] = 0
 w5_$social <- factor(w5_$social, ordered = TRUE)
@@ -249,6 +250,7 @@ w5_$country <- factor(w5_$country, ordered = TRUE)
 
 
 ```{r}
+# create a list of risk factors with the cognitive score
 rf_score <- names(w5_)[names(w5_) != "id"]
 rf_score
 ```
@@ -275,23 +277,14 @@ bl2 <- matrix(cbind(rf_score[!rf_score %in% c("age", "female", "country")],
               dimnames = list(NULL, c("from", "to")))
 bl <- unique(rbind(bl, bl2), MARGIN = 1)
 
-# depression is an indicator related to some feelings in the past, hence current habits do not have influence on it
-# bl <- rbind(bl, 
-#             matrix(c("obesity", "depression",
-#                      "alcohol", "depression", 
-#                      "physical", "depression",
-#                      "smoking", "depression"),
-#                    byrow = TRUE, ncol = 2, 
-#                    dimnames = list(NULL, c("from", "to"))))
-
-# smoking status and drinking behaviour are not influenced by obesity, chronic diseases or physical activity frequency
+# smoking status and drinking behaviour are not influenced by obesity, chronic diseases or phyactivity activity frequency
 bl <- rbind(bl, matrix(c("obesity", "smoking",
-                         "obesity", "alcohol", 
+                         "obesity", "drinking", 
                          "chronic", "smoking",
-                         "chronic", "alcohol",
-                         "physical", "smoking",
-                         "physical", "alcohol",
-                         "income", "work"),
+                         "chronic", "drinking",
+                         "phyactivity", "smoking",
+                         "phyactivity", "drinking",
+                         "economy", "work"),
                        byrow = TRUE, ncol = 2, 
                        dimnames = list(NULL, c("from", "to"))))
 ```
@@ -299,7 +292,9 @@ bl <- rbind(bl, matrix(c("obesity", "smoking",
 ```{r}
 # create a white list
 dag <- empty.graph(nodes = rf_score)
-arc.set <- matrix(c("work", "income",
+# work status has influence on household economy status
+# social status has influence on depression level
+arc.set <- matrix(c("work", "economy",
                     "social", "depression"),
                   byrow = TRUE, ncol = 2,
                   dimnames = list(NULL, c("from", "to")))
@@ -351,16 +346,16 @@ graphviz.plot((w5_.hc))
 # DAG modification
 w5_.hc.mod <- w5_.hc
 # modify some unreasonable arrows 
-w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "income", to = "smoking")
-w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "depression", to = "physical")
-w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "education", to = "alcohol")
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "economy", to = "smoking")
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "depression", to = "phyactivity")
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "education", to = "drinking")
 w5_.hc.mod <- reverse.arc(w5_.hc.mod, from = "chronic", to = "depression")
 
 # add some arrows to make the network more reasonable
 w5_.hc.mod <- set.arc(w5_.hc.mod, from = "female", to = "cogscore") 
 w5_.hc.mod <- set.arc(w5_.hc.mod, from = "depression", to = "cogscore")
-w5_.hc.mod <- set.arc(w5_.hc.mod, from = "physical", to = "obesity")
-w5_.hc.mod <- set.arc(w5_.hc.mod, from = "alcohol", to = "obesity")
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "phyactivity", to = "obesity")
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "drinking", to = "obesity")
 # ci.test("obesity", "cogscore", 
 #         c("age", "female", "country", "education", "depression"), 
 #         data = w5_[rf_score], test = "mi")
@@ -368,6 +363,7 @@ w5_.hc.mod <- set.arc(w5_.hc.mod, from = "obesity", to = "depression")
 ```
 
 ```{r}
+# display the modified network 
 graphviz.plot(w5_.hc.mod)
 ```
 
@@ -383,43 +379,43 @@ graphviz.plot(w5_.iamb)
 # DAG modification
 w5_.iamb.mod <- w5_.iamb
 # modify some unreasonable arrows
-w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "alcohol", to = "income")
-w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "physical", to = "depression")
+w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "drinking", to = "economy")
+w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "phyactivity", to = "depression")
 w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "chronic", to = "depression")
-w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "education", to = "alcohol")
+w5_.iamb.mod <- drop.arc(w5_.iamb.mod, from = "education", to = "drinking")
 w5_.iamb.mod <- reverse.arc(w5_.iamb.mod, from = "chronic", to = "obesity")
-w5_.iamb.mod <- reverse.arc(w5_.iamb.mod, from = "physical", to = "chronic")
+w5_.iamb.mod <- reverse.arc(w5_.iamb.mod, from = "phyactivity", to = "chronic")
 
 # test if country has direct effect on cognitive score
 ci.test("country", "cogscore", 
-        c("age", "female", "education", "physical", "depression"),
+        c("age", "female", "education", "phyactivity", "depression"),
         data = w5_[rf_score], test = "mi")
 w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "country", to = "cogscore")
 
 # test if drinking behaviour has direct effect on cognitive score 
-ci.test("alcohol", "cogscore", 
-        c("age", "female", "country", "education", "physical", "depression"),
+ci.test("drinking", "cogscore", 
+        c("age", "female", "country", "education", "phyactivity", "depression"),
         data = w5_[rf_score], test = "mi")
 
 # test if drinking behaviour has influence on obesity
-ci.test("alcohol", "obesity", c("female", "chronic", "smoking"),
+ci.test("drinking", "obesity", c("female", "chronic", "smoking"),
         data = w5_[rf_score], test = "mi")
-w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "alcohol", to = "obesity")
+w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "drinking", to = "obesity")
 
 # test if physical activity frequency has influence on obesity
-ci.test("physical", "obesity", 
-        c("female", "smoking", "alcohol", "chronic"),
+ci.test("phyactivity", "obesity", 
+        c("female", "smoking", "drinking", "chronic"),
         data = w5_[rf_score], test = "mi")
-w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "physical", to = "obesity")
+w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "phyactivity", to = "obesity")
 
 #test if obesity has direct effect on cognitive score
 ci.test("obesity", "cogscore", 
-        c("age", "female", "country", "education", "physical", "depression"),
+        c("age", "female", "country", "education", "phyactivity", "depression"),
         data = w5_[rf_score], test = "mi")
 
 # test if obesity has influence on depression
 ci.test("obesity", "depression", 
-        c("female", "chronic", "income", "social"),
+        c("female", "chronic", "economy", "social"),
         data = w5_[rf_score], test = "mi")
 w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "obesity", to = "depression")
 
@@ -428,14 +424,15 @@ ci.test("smoking", "age", data = w5_[rf_score], test = "mi")
 w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "age", to = "smoking")
 
 # test if age or gender has influence on physical activity frequency
-ci.test("age", "physical", data = w5_[rf_score], test = "mi")
-w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "age", to = "physical")
+ci.test("age", "phyactivity", data = w5_[rf_score], test = "mi")
+w5_.iamb.mod <- set.arc(w5_.iamb.mod, from = "age", to = "phyactivity")
 ```
 ```{r}
 # display the network after modification above
 graphviz.plot(w5_.iamb.mod)
 ```
 ```{r, warning = FALSE}
+# compare the modified networks with initial ones using cv
 dag.list <- list(w5_.hc, w5_.hc.mod, w5_.iamb, w5_.iamb.mod)
 loss2 <- NULL
 for (i in 1:length(dag.list)){
@@ -449,6 +446,7 @@ sort(loss2, decreasing = FALSE)
 ```
 
 ```{r}
+# final network - w5_.hc.mod
 graphviz.plot(w5_.hc.mod)
 ```
 ```{r}
@@ -471,8 +469,8 @@ cs.lv <- levels(w5_$cogscore)    # cognitive score
 
 ```{r, fig.width = 10}
 # trend of cognitive score in different gender and country groups, 
-# as age increases (holding education and depression)
-p1 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+# as age increases (holding education and depression at baseline level)
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes$cogscore$prob[, , 1, 1, 1, 1]),
                                      ncol = 1),
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -482,7 +480,7 @@ p1 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Male, Low aGDP (No Education, Low Depression)")
-p2 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes$cogscore$prob[, , 1, 1, 1, 2]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -492,7 +490,7 @@ p2 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Male, High aGDP (No Education, Low Depression)")
-p3 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes$cogscore$prob[, , 2, 1, 1, 1]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -502,7 +500,7 @@ p3 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Female, Low aGDP (No Education, Low Depression)")
-p4 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes$cogscore$prob[, , 2, 1, 1, 2]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -516,16 +514,17 @@ p4 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
 grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
 ```{r}
-olr.fitf <- polr(cogscore ~ age + country + education + depression,
+
+olr.fitf <- polr(cogscore ~ age + education + depression + country,
                  data = w5_[w5_$female== 1, ])
-olr.fitm <- polr(cogscore ~ age + country + education + depression,
+olr.fitm <- polr(cogscore ~ age + education + depression + country,
                  data = w5_[w5_$female== 0, ])
 
-combos <- data.frame(age = rep(a.lv, length(c.lv)), 
-                     country = rep(c.lv, each = length(a.lv)),
-                     education = rep(e.lv, each = length(a.lv) * length(c.lv)),
-                     depression = rep(d.lv, each = length(a.lv) * 
-                                        length(c.lv) * length(e.lv)))
+combos <- data.frame(age = rep(a.lv, length(e.lv)), 
+                     education = rep(e.lv, each = length(a.lv)),
+                     depression = rep(d.lv, each = length(a.lv) * length(e.lv)),
+                     country = rep(c.lv, each = length(a.lv) * 
+                                        length(e.lv) * length(d.lv)))
 distcsf <- predict(olr.fitf, newdata = combos ,type = "p")
 distcsm <- predict(olr.fitm, newdata = combos ,type = "p")
 distcs <- array(dim = c(length(cs.lv), length(a.lv), length(f.lv),
@@ -546,7 +545,7 @@ bn.bayes2$cogscore <- distcs
 ```
 
 ```{r, fig.width = 10}
-p1 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 1]),
                                      ncol = 1),
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -556,7 +555,7 @@ p1 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Male, Low aGDP (No Education, Low Depression)")
-p2 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 2]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -566,7 +565,7 @@ p2 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Male, High aGDP (No Education, Low Depression)")
-p3 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 1, 1]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -576,7 +575,7 @@ p3 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
   theme(plot.title = element_text(size = 12)) + 
   labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
        title = "Female, Low aGDP (No Education, Low Depression)")
-p4 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                           y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 1, 2]),
                                      ncol = 1), 
                           color = rep(cs.lv, each = length(a.lv)))) + 
@@ -589,4 +588,855 @@ p4 = ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
 
 grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 2, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (No Education, Medium Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (No Education, Medium Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 2, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (No Education, Medium Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (No Education, Medium Depression)")
 
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 3, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (No Education, High Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (No Education, High Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 3, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (No Education, High Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (No Education, High Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (Primary Education, Low Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (Primary Education, Low Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (Primary Education, Low Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (Primary Education, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 2, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (Primary Education, Medium Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (Primary Education, Medium Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 2, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (Primary Education, Medium Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (Primary Education, Medium Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 3, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (Primary Education, High Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 2, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (Primary Education, High Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 3, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (Primary Education, High Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 2, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (Primary Education, High Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 3, 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (Secondary Education, Low Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 3, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (Secondary Education, Low Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 3, 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (Secondary Education, Low Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 3, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (Secondary Education, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 4, 3, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (Post-Secondary Education, High Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 4, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (Post-Secondary Education, High Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 4, 3, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (Post-Secondary Education, High Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 4, 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (Post-Secondary Education, High Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, Low Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, Low Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, Low Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 2, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, Medium Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, Medium Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 2, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, MEdium Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, Medium Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 3, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, High Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, , 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, High Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 3, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, High Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, , 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, High Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (>=85, Low Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (>=85, Low Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (>=85, Low Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (>=85, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 2, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (>=85, Medium Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (>=85, Medium Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 2, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (>=85, MEdium Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 2, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (>=85, Medium Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 3, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (>=85, High Depression)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, , 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (>=85, High Depression)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 3, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (>=85, High Depression)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, , 3, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (>=85, High Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 1, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, No Education)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, No Education)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 1, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, No Education)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, No Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 2, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, Primary Education)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 2, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, Primary Education)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 2, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, Primary Education)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 2, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, Primary Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 5, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (50-54, Post-Secondary Education)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 1, 5, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (50-54, Post-Secondary Education)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 5, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (50-54, Post-Secondary Education)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 1, 2, 5, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (50-54, Post-Secondary Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, 1, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (>=85, No Education)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (>=85, No Education)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, 1, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (>=85, No Education)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (>=85, No Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 10}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, 5, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (>=85, Post-Secondary Education)")
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 1, 5, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (>=85, Post-Secondary Education)")
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, 5, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (>=85, Post-Secondary Education)")
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 8, 2, 5, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (>=85, Post-Secondary Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
