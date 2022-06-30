@@ -58,6 +58,7 @@ p2 <- ggplot() +
 
 grid.arrange(p1, p2, ncol = 2)
 ```
+
 ### Feature Selection
 
 ```{r}
@@ -677,6 +678,7 @@ grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
 
 ```{r, fig.height = 3, fig.width = 9}
+# auxiliary plots used in the summary
 p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
                            y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 1]),
                                       ncol = 1),
@@ -702,4 +704,3 @@ p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
 
 grid.arrange(p1, p2, ncol = 2)
 ```
-
