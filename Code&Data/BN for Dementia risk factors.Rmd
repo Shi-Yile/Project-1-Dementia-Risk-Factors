@@ -1,0 +1,705 @@
+---
+title: "Bayesian Networks for Dementia Risk Factors"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+Sys.setlocale("LC_ALL", "UK")
+```
+
+## Load data and packages
+
+```{r data}
+load("easySHARE_rel8_0_0.rda")
+```
+
+```{r packs, include = FALSE}
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(bnlearn)
+library(Rgraphviz)
+library(MASS)
+```
+
+## Exploratory Data Analysis (EDA)
+
+```{r, message = FALSE, fig.height=3, fig.width=9}
+# distribution plots of variable book_age10
+p1 <- ggplot() +
+  geom_histogram(aes(x = easySHARE_rel8_0_0$books_age10), 
+                 color = "darkblue", fill = "lightblue") +
+  labs(x = "distribution of books_age10")
+
+books_miss <- easySHARE_rel8_0_0 %>%
+  dplyr::select(c(wave, books_age10)) %>%
+  filter(books_age10 < 0)
+
+p2 <- ggplot() +
+  geom_histogram(aes(x = books_miss$wave), 
+                 color = "darkblue", fill="lightblue") +
+  labs(x = "number of NAs of books_age10 in each wave")
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+```{r, fig.height=3, fig.width=9}
+# distribution plots for partnerinhh and mar_stat
+p1 <- ggplot() +
+  geom_histogram(aes(x = easySHARE_rel8_0_0$partnerinhh), 
+                 color = "darkblue", fill = "lightblue") +
+  labs(x = "distribution of partnerinhh")
+
+p2 <- ggplot() + 
+  geom_histogram(aes(x = easySHARE_rel8_0_0$mar_stat), 
+                 color = "darkblue", fill = "lightblue") +
+  labs(x = "distribution of mar_stat")
+
+grid.arrange(p1, p2, ncol = 2)
+```
+### Feature Selection
+
+```{r}
+# subset of columns used to create risk factors
+vars <- c("wave", "country", "mergeid",    # identifiers
+          "age",    # age 
+          "female",   # gender
+          "isced1997_r",    # education
+          "partnerinhh",    # social isolation 
+          "chronic_mod",    # chronic disease
+          # "hc002_mod", "hc012_", "hc029_",    # health care
+          "eurod", # depression
+          "br015_",    # physical activity
+          "bmi2",    # obesity
+          "smoking",   # smoking
+          "br010_mod",    # drinking behaviour 
+          "ep005_",    # job situation
+          "co007_",    # family finance status
+          "recall_1", "recall_2", "numeracy_2")  
+```
+
+```{r}
+# extract specified columns from the original dataset
+subset <- easySHARE_rel8_0_0[vars]
+# before any processing steps, we convert missing values to NA
+subset[which(subset < 0, arr.ind = TRUE)] = NA
+# specify on wave 5
+w5 <- subset[subset$wave == 5, ]
+```
+
+```{r}
+# the proportion of missing values in each column 
+mis_prop <- apply(subset(w5, select = -mergeid), 
+                  2, function(x) length(x[is.na(x)]) / length(x))
+cat("The proportion of missing values in each column: \n")
+sort(round(mis_prop, 4), decreasing = TRUE)
+```
+
+```{r}
+# number and proportion of observations with missing values
+idx_com_5 <- which(apply(subset(w5, select = -mergeid), 
+                         1, function(x) any(is.na(x))) == FALSE)
+cat("The number of complete observations in wave 5 is: ", 
+    length(idx_com_5), "\n")
+cat("The proportion of complete observations in wave 5 is: ", 
+    round(length(idx_com_5) / nrow(w5), 4))
+```
+
+### Feature Transformation
+
+```{r}
+# data processing step
+w5_ <- w5 %>% 
+  # rename the columns using risk factors
+  rename(id = mergeid,
+         gender = female,
+         education = isced1997_r, 
+         drinking = br010_mod,
+         obesity = bmi2,
+         chronic = chronic_mod,
+         work = ep005_,
+         finance = co007_,
+         depression = eurod,
+         phyactivity =br015_,
+         social = partnerinhh) %>% 
+  # recode binary(1/5) variables to 0/1 (0 -> 5)
+  mutate_at("smoking", 
+            ~ if_else(.x == 5, 0, 1, missing = NULL)) %>%
+  # create indicator for smoking status and cognitive score
+  mutate(# smoking = smoking + ever_smoked,
+         cogscore = recall_1 + recall_2 + numeracy_2) %>% 
+  # drop observations with missing values
+  drop_na() %>%
+  # filter individuals at least 50 in wave 5
+  filter(age >= 50) %>%
+  # keep risk factors and cognitive score, with country and id 
+  dplyr::select(c(age, id, gender, education, drinking, obesity, chronic, 
+                  work, finance, depression, smoking, phyactivity, 
+                  social, cogscore, country))
+```
+
+```{r}
+# mergeid of patients with unclear education status
+w5_edu_9597_id <- w5_$id[which(w5_$education > 90)]
+cat(length(w5_edu_9597_id), round(length(w5_edu_9597_id) / nrow(w5_), 4))
+```
+
+```{r}
+# extract the education and work status columns of these patients 
+# as well as their mergeid and the wave of the observations
+subset_ <- subset %>%
+  filter(mergeid %in% w5_edu_9597_id) %>%
+  dplyr::select(c(mergeid, wave, isced1997_r)) %>%
+  rename(id = mergeid, edu = isced1997_r)
+# count of each category
+table(subset_$edu)
+```
+```{r}
+# mergeid of patients with unclear working status
+w5_work_97_id <- w5_$id[which(w5_$work > 90)]
+cat(length(w5_work_97_id), round(length(w5_work_97_id) / nrow(w5_), 4))
+```
+
+```{r}
+# drop rows of patients with unclear education or working status 
+w5_drop_id <- union(w5_edu_9597_id, w5_work_97_id)
+w5_ <- w5_ %>% filter(!id %in% w5_drop_id)
+```
+
+```{r}
+# distribution plots of some variables before further transformation
+w5_. <- w5_
+
+# cognitive score
+p1 <- ggplot() +
+  geom_histogram(aes(x = w5_.$cogscore), color="darkblue", fill="lightblue") +
+  labs(x ="cognitive score before discretized")
+
+# age
+p2 <- ggplot() +
+  geom_histogram(aes(x = w5_.$age), color="darkblue", fill="lightblue") +
+  labs(x ="age before discretized")
+
+# country
+p3 <- ggplot() +
+  geom_histogram(aes(x = w5_.$country), color="darkblue", fill="lightblue") +
+  labs(x ="country before discretized")
+
+# drinking behaviour
+p4 <- ggplot() +
+  geom_histogram(aes(x = w5_.$drinking), color="darkblue", fill="lightblue") +
+  labs(x ="drinking behaviour before recategorized")
+```
+
+
+```{r}
+# discretize age using cut() function
+w5_$age <- cut(w5_$age, breaks = c(seq(50,85,5), max(w5_$age)+1), 
+                  ordered_result = TRUE, right = FALSE)
+# discretize cognitive score based on 10%(severe) and 40%(mild) quantiles
+w5_$cogscore <- cut(w5_$cogscore, 
+                    breaks = c(0, quantile(w5_$cogscore, probs = c(0.1, 0.4)), 
+                               max(w5_$cogscore)+1),
+                    ordered_result = TRUE, right = FALSE, 
+                    labels = c("severe", "mild", "normal"))
+# factorize gender
+w5_$gender <- factor(w5_$gender)
+# factorize education and combine some levels
+w5_$education[w5_$education == 4 | w5_$education == 5 | w5_$education == 6] = 4
+w5_$education <- factor(w5_$education, ordered = TRUE)
+# factorize drinking and combine some levels
+w5_$drinking[w5_$drinking == 2 | w5_$drinking == 3] = 2
+w5_$drinking[w5_$drinking == 4 | w5_$drinking == 5] = 3
+w5_$drinking[w5_$drinking == 6 | w5_$drinking == 7] = 4
+w5_$drinking <- factor(w5_$drinking, ordered = TRUE)
+# factorize obesity 
+w5_$obesity <- factor(w5_$obesity, ordered = TRUE)
+# discretize chronic disease 
+w5_$chronic <- cut(w5_$chronic, breaks = c(0, 1, 3, max(w5_$chronic)+1),
+                   ordered_result = TRUE, right = FALSE)
+# factorize work status
+w5_$work <- factor(w5_$work, ordered = TRUE)
+# factorize finance
+w5_$finance <- factor(w5_$finance, ordered = TRUE)
+# discretize depression
+w5_$depression <- cut(w5_$depression, breaks = c(0, 2, 5, 13),
+                         ordered_result = TRUE, right = FALSE)
+# factorize smoking status
+w5_$smoking <- factor(w5_$smoking, ordered = TRUE)
+# factorize phyactivity activity frequency and combine some levels
+w5_$phyactivity[w5_$phyactivity == 2 | w5_$phyactivity == 3] = 2
+w5_$phyactivity[w5_$phyactivity == 4] = 3
+w5_$phyactivity <- factor(w5_$phyactivity, ordered = TRUE)
+# factorize social status and combine some levels
+w5_$social[w5_$social == 3] = 0
+w5_$social <- factor(w5_$social, ordered = TRUE)
+```
+
+```{r}
+# the number of observations in each country 
+sort(table(w5_$country), decreasing = TRUE)
+# countries with high aGDP
+country_high <- c(31, 20, 18, 13, 14, 11, 23, 12, 17)
+# categorize and factorize country 
+w5_$country <- ifelse(w5_$country %in% country_high, 1, 0)
+w5_$country <- factor(w5_$country, ordered = TRUE)
+```
+
+```{r}
+# distribution plots of chosen variables after transformation
+# cognitive score
+p1_ <- ggplot(data = w5_, aes(x = cogscore)) +
+  geom_bar(stat = "count", width = 0.3, color="darkblue", fill="lightblue") +
+  labs(x ="cognitive score after discretized")
+
+# age
+p2_ <- ggplot(data = w5_, aes(x = age)) +
+  geom_bar(stat = "count", color="darkblue", fill="lightblue") +
+  labs(x ="age after discretized")
+
+# country
+p3_ <- ggplot(data = w5_, aes(x = country)) +
+  geom_bar(stat = "count", width = 0.25, color="darkblue", fill="lightblue") +
+  labs(x ="country after discretized")
+
+# drinking behaviour
+p4_ <- ggplot(data = w5_, aes(x = drinking)) +
+  geom_bar(stat = "count", width = 0.5, color="darkblue", fill="lightblue") +
+  labs(x ="drinking behaviour after recategorized")
+```
+
+```{r, fig.height = 4, fig.width = 9}
+# compare distribution plots of cognitive score and age
+grid.arrange(p1, p1_, p2, p2_, ncol = 2)
+```
+
+```{r, fig.height = 3, fig.width = 9}
+# compare distribution plots of country 
+grid.arrange(p3, p3_, ncol = 2)
+```
+```{r, fig.height = 3, fig.width = 9}
+# compare distribution plots of drinking behaviour
+grid.arrange(p4, p4_, ncol = 2)
+```
+
+## Implementation
+
+```{r}
+# create a list of risk factors with the cognitive score
+rf_score <- names(w5_)[names(w5_) != "id"]
+rf_score
+```
+
+### Blacklist and whitelist
+
+```{r}
+# no arrow from cognitive score
+bl <- matrix(cbind("cogscore", rf_score[rf_score != "cogscore"]), 
+             ncol = 2, dimnames = list(NULL, c("from", "to")))
+# no arrow to gender
+bl2 <- matrix(cbind(rf_score[rf_score != "gender"], "gender"), ncol = 2,
+              dimnames = list(NULL, c("from", "to")))
+bl <- unique(rbind(bl, bl2), MARGIN = 1)
+# no arrow to age
+bl2 <- matrix(cbind(rf_score[rf_score != "age"], "age"), ncol = 2,
+              dimnames = list(NULL, c("from", "to")))
+bl <- unique(rbind(bl, bl2), MARGIN = 1)
+# no arrow to country
+bl2 <- matrix(cbind(rf_score[rf_score != "country"], "country"), ncol = 2,
+              dimnames = list(NULL, c("from", "to")))
+bl <- unique(rbind(bl, bl2), MARGIN = 1)
+# no arrow to education except gender, age and country
+bl2 <- matrix(cbind(rf_score[!rf_score %in% c("age", "gender", "country")], 
+                    "education"), ncol = 2,
+              dimnames = list(NULL, c("from", "to")))
+bl <- unique(rbind(bl, bl2), MARGIN = 1)
+
+# smoking status and drinking behaviour are not influenced by obesity, chronic diseases or phyactivity activity frequency
+bl <- rbind(bl, matrix(c("obesity", "smoking",
+                         "obesity", "drinking", 
+                         "chronic", "smoking",
+                         "chronic", "drinking",
+                         "phyactivity", "smoking",
+                         "phyactivity", "drinking",
+                         "finance", "work"),
+                       byrow = TRUE, ncol = 2, 
+                       dimnames = list(NULL, c("from", "to"))))
+```
+
+```{r}
+# create a white list
+dag <- empty.graph(nodes = rf_score)
+# work status has influence on household finance status
+# social status has influence on depression level
+arc.set <- matrix(c("work", "finance",
+                    "social", "depression"),
+                  byrow = TRUE, ncol = 2,
+                  dimnames = list(NULL, c("from", "to")))
+arcs(dag) <- arc.set
+graphviz.plot(dag)
+```
+
+### Algorithm evaluation
+
+```{r}
+# define a function to calculate the average loss of cross-validation
+avg_loss <- function(bn_cv){
+  n <- length(bn_cv)
+  sum_loss <- 0
+  for (i in 1:n){
+    sum_loss <- sum_loss + bn_cv[[i]]$loss
+  }
+  sum_loss / n
+}
+```
+
+```{r, warning = FALSE}
+# define the list of algorithm candidates 
+algorithm_list <- c("pc.stable", "iamb", "hc")
+# initialize the vector for the average loss of each algorithm
+loss <- matrix(nrow = 3, ncol = 5)
+
+# loop to calculate the average loss of each algorithm across random seed 1-5
+for (i in seq(1,5)){
+  for (j in 1:length(algorithm_list)){
+    set.seed(i)
+    # cross-validation with same settings
+    bn_cv <- bn.cv(data = w5_[rf_score], bn = algorithm_list[j],
+                   algorithm.args = list(blacklist = bl, whitelist = arc.set,
+                                         test = "mi", undirected = FALSE),
+                   loss = "pred", loss.args = list(target = "cogscore"))
+    loss[j, i] <- avg_loss(bn_cv)
+  }
+}
+# name the vector with corresponding algorithms
+row.names(loss) <- algorithm_list
+colnames(loss) <- seq(1, 5)
+loss
+```
+
+```{r}
+# initial network using hill climbing algorithm
+w5_.hc <- hc(w5_[rf_score], blacklist = bl, whitelist = arc.set)
+graphviz.plot((w5_.hc))  
+```
+```{r}
+# DAG modification
+w5_.hc.mod <- w5_.hc
+# modify some unreasonable arrows 
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "finance", to = "smoking")
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "depression", to = "phyactivity")
+w5_.hc.mod <- drop.arc(w5_.hc.mod, from = "education", to = "drinking")
+w5_.hc.mod <- reverse.arc(w5_.hc.mod, from = "depression", to = "chronic")
+
+# add some arrows to make the network more reasonable
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "gender", to = "cogscore") 
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "depression", to = "cogscore")
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "phyactivity", to = "obesity")
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "drinking", to = "obesity")
+# ci.test("obesity", "cogscore", 
+#         c("age", "female", "country", "education", "depression"), 
+#         data = w5_[rf_score], test = "mi")
+w5_.hc.mod <- set.arc(w5_.hc.mod, from = "obesity", to = "depression")
+```
+
+```{r}
+# display the modified network 
+graphviz.plot(w5_.hc.mod)
+```
+```{r, warning = FALSE}
+# compare the modified networks with initial ones using cv
+dag.list <- list(w5_.hc, w5_.hc.mod)
+loss2 <- matrix(nrow = 5, ncol = 2)
+for (i in seq(1, 5)){
+  for (j in 1:length(dag.list)){
+    set.seed(i)
+    bn_cv <- bn.cv(w5_[rf_score], dag.list[[j]], 
+                   loss = "pred", loss.args = list(target = "cogscore"))
+    loss2[i, j] <- avg_loss(bn_cv)
+  }
+}
+row.names(loss2) <- seq(1, 5)
+colnames(loss2) <- c("hc", "hc.mod")
+loss2
+```
+
+## Results
+
+```{r}
+# final network - w5_.hc.mod
+graphviz.plot(w5_.hc.mod)
+```
+```{r}
+# use the final network to estimate parameters 
+bn.bayes <- bn.fit(w5_.hc.mod, data = w5_[rf_score], 
+                   method = "bayes", iss = 10000)
+# display the factors having direct effect on cognitive score, i.e. parents
+bn.bayes$cogscore$parents
+```
+```{r}
+# levels of each direct factor
+a.lv <- levels(w5_$age)    # age
+g.lv <- levels(w5_$gender)    # gender
+c.lv <- levels(w5_$country)    # country
+e.lv <- levels(w5_$education)    # education
+d.lv <- levels(w5_$depression)    # depression 
+cs.lv <- levels(w5_$cogscore)    # cognitive score
+```
+
+```{r, fig.width = 10}
+# trend of cognitive score in different gender and country groups, 
+# before using ordered logistic regression
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes$cogscore$prob[, , 1, 1, 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Before smoothing")
+```
+
+```{r}
+# fit an ordered logistic regression of cognitive score over direct risk factors
+olr.fitf <- polr(cogscore ~ age + education + depression + country,
+                 data = w5_[w5_$gender== 1, ])
+olr.fitm <- polr(cogscore ~ age + education + depression + country,
+                 data = w5_[w5_$gender== 0, ])
+
+# all possible combination for prediction
+combos <- data.frame(age = rep(a.lv, length(e.lv)), 
+                     education = rep(e.lv, each = length(a.lv)),
+                     depression = rep(d.lv, each = length(a.lv) * length(e.lv)),
+                     country = rep(c.lv, each = length(a.lv) * 
+                                        length(e.lv) * length(d.lv)))
+
+# predicted distribution based on regression above
+distcsf <- predict(olr.fitf, newdata = combos ,type = "p")
+distcsm <- predict(olr.fitm, newdata = combos ,type = "p")
+distcs <- array(dim = c(length(cs.lv), length(a.lv), length(g.lv),
+                        length(e.lv), length(d.lv), length(c.lv)), 
+                dimnames = list(cogscore = cs.lv, age = a.lv, gender = g.lv,
+                                education = e.lv, depression = d.lv, 
+                                country = c.lv))
+distcs[ , , 1, , ,] <- array(t(distcsm), 
+                             dim = c(length(cs.lv), length(a.lv), 1, 
+                                     length(e.lv), length(d.lv),
+                                     length(c.lv)))
+distcs[ , , 2, , ,] <- array(t(distcsf), 
+                             dim = c(length(cs.lv), length(a.lv), 1, 
+                                     length(e.lv), length(d.lv),
+                                     length(c.lv)))
+
+# a new BN fit with updated distribution matrix of cognitive score 
+bn.bayes2 <- bn.bayes
+bn.bayes2$cogscore <- distcs
+```
+
+```{r, fig.height = 3, fig.width = 9}
+# compare the plots before and after smoothing
+p1_ <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "After smoothing")
+
+grid.arrange(p1, p1_, ncol = 2)
+```
+
+
+```{r, fig.width = 9}
+# trends of cognitive score over age in different gender and country groups
+# in new BN with updated distribution of cognitive score
+# No education, Low depression
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (No Education, Low Depression)")
+
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, High aGDP (No Education, Low Depression)")
+
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, Low aGDP (No Education, Low Depression)")
+
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, , 2, 1, 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Female, High aGDP (No Education, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 9}
+# trends of cognitive score over education in different gender and country
+# in new BN with updated distribution of cognitive score
+# 65-69, Low depression
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 1, , 1, 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (65-69, Low Depression)")
+
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 1, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (65-69, Low Depression)")
+
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 2, , 1, 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (65-69, Low Depression)")
+
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(e.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 2, , 1, 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(e.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(e.lv)), labels = e.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Education", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (65-69, Low Depression)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.width = 9}
+# trends of cognitive score over depression in different gender and country 
+# in new BN with updated distribution of cognitive score
+# 65-69, No education
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 1, 1, , 1]),
+                                     ncol = 1),
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (65-69, No Education)")
+
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 1, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, High aGDP (65-69, No Education)")
+
+p3 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 2, 1, , 1]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, Low aGDP (65-69, No Education)")
+
+p4 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                          y = matrix(t(bn.bayes2$cogscore$prob[, 4, 2, 1, , 2]),
+                                     ncol = 1), 
+                          color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Female, High aGDP (65-69, No Education)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+```{r, fig.height = 3, fig.width = 9}
+p1 <- ggplot(mapping = aes(x = rep(seq(1 : length(a.lv)), 3),
+                           y = matrix(t(bn.bayes2$cogscore$prob[, , 1, 1, 1, 1]),
+                                      ncol = 1),
+                          color = rep(cs.lv, each = length(a.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(a.lv)), labels = a.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Age", y = "Conditional probability", color = "Cognitive score", 
+       title = "Male, Low aGDP (No Education, Low Depression)")
+
+p2 <- ggplot(mapping = aes(x = rep(seq(1 : length(d.lv)), 3),
+                           y = matrix(t(bn.bayes2$cogscore$prob[, 4, 1, 1, , 1]),
+                                      ncol = 1),
+                           color = rep(cs.lv, each = length(d.lv)))) + 
+  geom_point() +
+  geom_line() +
+  scale_x_discrete(breaks = seq(1 : length(d.lv)), labels = d.lv) +
+  theme(plot.title = element_text(size = 12)) + 
+  labs(x = "Depression", y = "Conditional probability", 
+       color = "Cognitive score", 
+       title = "Male, Low aGDP (65-69, No Education)")
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
