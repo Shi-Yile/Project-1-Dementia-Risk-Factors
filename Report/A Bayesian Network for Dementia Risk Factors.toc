@@ -1,0 +1,19 @@
+\contentsline {paragraph}{Word count:}{3}{section*.1}%
+\contentsline {section}{\numberline {1}Introduction}{2}{section.1}%
+\contentsline {section}{\numberline {2}Exploratory Data Analysis}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Feature Selection}{2}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Risk Factors}{2}{subsubsection.2.1.1}%
+\contentsline {subsubsection}{\numberline {2.1.2}Cognitive Score}{3}{subsubsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.2}Feature Transformation}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Implementation}{7}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Bayesian Network}{7}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Evaluation of Algorithms}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Model Modification}{8}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Results}{9}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Age}{9}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Education}{10}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Depression}{11}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Gender}{11}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Country}{12}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Conclusions}{13}{section.5}%
+\contentsline {section}{Appendix}{16}{section*.4}%
