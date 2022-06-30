@@ -1,0 +1,133 @@
+\begin{thebibliography}{10}
+
+\bibitem{alzheimer2019world}
+Alzheimer’s~Disease International.
+\newblock World alzheimer report 2019: attitudes to dementia.
+\newblock {\em Alzheimer’s Disease International: London}, 2019.
+
+\bibitem{share1}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  1}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-1.html}{10.6103/SHARE.w1.800}.
+
+\bibitem{share2}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  2}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-2.html}{10.6103/SHARE.w2.800}.
+
+\bibitem{share3}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  3}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-3.html}{10.6103/SHARE.w3.800}.
+
+\bibitem{share4}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  4}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-4.html}{10.6103/SHARE.w4.800}.
+
+\bibitem{share5}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  5}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-5.html}{10.6103/SHARE.w5.800}.
+
+\bibitem{share6}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  6}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-6.html}{10.6103/SHARE.w6.800}.
+
+\bibitem{share7}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  7}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-7.html}{10.6103/SHARE.w7.800}.
+
+\bibitem{share8}
+A.~Börsch-Supan.
+\newblock {\em Survey of Health, Ageing and Retirement in Europe (SHARE) Wave
+  8}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/data-documentation/waves-overview/wave-8.html}{10.6103/SHARE.w8.800}.
+
+\bibitem{easyshare}
+A.~Börsch-Supan and S.~Gruber.
+\newblock {\em easySHARE}.
+\newblock Release version: 8.0.0. SHARE-ERIC. Data set, 2022.
+\newblock doi:
+  \href{http://www.share-project.org/special-data-sets/easyshare.html}{10.6103/SHARE.easy.800}.
+
+\bibitem{seixas2014bayesian}
+Fl{\'a}vio~Luiz Seixas, Bianca Zadrozny, Jerson Laks, Aura Conci, and
+  D{\'e}bora Christina~Muchaluat Saade.
+\newblock A bayesian network decision model for supporting the diagnosis of
+  dementia, alzheimer's disease and mild cognitive impairment.
+\newblock {\em Computers in biology and medicine}, 51:140--158, 2014.
+
+\bibitem{crimmins2011assessment}
+Eileen~M Crimmins, Jung~Ki Kim, Kenneth~M Langa, and David~R Weir.
+\newblock Assessment of cognition using surveys and neuropsychological
+  assessment: the health and retirement study and the aging, demographics, and
+  memory study.
+\newblock {\em Journals of Gerontology Series B: Psychological Sciences and
+  Social Sciences}, 66(suppl\_1):i162--i171, 2011.
+
+\bibitem{beam2018differences}
+Christopher~R Beam, Cody Kaneshiro, Jung~Yun Jang, Chandra~A Reynolds, Nancy~L
+  Pedersen, and Margaret Gatz.
+\newblock Differences between women and men in incidence rates of dementia and
+  alzheimer’s disease.
+\newblock {\em Journal of Alzheimer's Disease}, 64(4):1077--1083, 2018.
+
+\bibitem{livingston2017dementia}
+Gill Livingston, Andrew Sommerlad, Vasiliki Orgeta, Sergi~G Costafreda,
+  Jonathan Huntley, David Ames, Clive Ballard, Sube Banerjee, Alistair Burns,
+  Jiska Cohen-Mansfield, et~al.
+\newblock Dementia prevention, intervention, and care.
+\newblock {\em The Lancet}, 390(10113):2673--2734, 2017.
+
+\bibitem{gruber2014generating}
+Stefan Gruber, Christian Hunkler, and Stephanie Stuck.
+\newblock {\em Generating easySHARE: guidelines, structure, content and
+  programming}.
+\newblock SHARE Working Paper Series (17-2014). Munich: MEA, Max Planck
+  Institute for Social Law and Social Policy, 2014.
+
+\bibitem{scutari2010learning}
+M~Scutari.
+\newblock Learning bayesian networks with the bnlearn r package.
+\newblock {\em Journal of Statistical Software}, 35(3), 2010.
+
+\bibitem{lee2018association}
+Allen~TC Lee, Marcus Richards, Wai~C Chan, Helen~FK Chiu, Ruby~SY Lee, and
+  Linda~CW Lam.
+\newblock Association of daily intellectual activities with lower risk of
+  incident dementia among older chinese adults.
+\newblock {\em JAMA psychiatry}, 75(7):697--703, 2018.
+
+\bibitem{blacker2018brain}
+Deborah Blacker and Jennifer Weuve.
+\newblock Brain exercise and brain outcomes: does cognitive activity really
+  work to maintain your brain?
+\newblock {\em JAMA psychiatry}, 75(7):703--704, 2018.
+
+\end{thebibliography}
